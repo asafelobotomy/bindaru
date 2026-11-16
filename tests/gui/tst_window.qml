@@ -11,6 +11,8 @@ Item {
     height: 740
 
     property string shotsDir: ""
+    // uQ theme tokens (as the app reads them) to render the shots in; null follows the desktop.
+    property var uqTokens: null
     readonly property string hash: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
     function pkg(name, version, repo, desc, installed, size, extra) {
@@ -105,6 +107,8 @@ Item {
             return root.find(root, i => i.objectName === n);
         }
         function init() {
+            if (root.uqTokens !== null)
+                Theme.tokens = root.uqTokens;
             store.page = "software";
             store.filter = "all";
             store.query = "";

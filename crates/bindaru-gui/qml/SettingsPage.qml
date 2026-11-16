@@ -3,6 +3,7 @@ import QtQuick
 import org.bindaru.app
 import QtQuick.Controls as QQC2
 import QtQuick.Layouts
+import org.kde.kirigami as Kirigami
 
 QQC2.ScrollView {
     id: page
@@ -101,11 +102,10 @@ QQC2.ScrollView {
             Choice { label: "Scan new installs"; key: "scan_installs"; names: ["Never", "AUR builds only", "Everything I install"]; values: ["off", "aur", "all"] }
         }
 
-        QQC2.Label {
+        Kirigami.InlineMessage {
             visible: page.store.configProblem !== ""
+            type: Kirigami.MessageType.Error
             text: page.store.configProblem
-            color: Theme.error
-            wrapMode: Text.Wrap
             Layout.fillWidth: true
         }
         Item { implicitHeight: 8 }

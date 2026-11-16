@@ -4,6 +4,7 @@ import QtQuick
 import org.bindaru.app
 import QtQuick.Controls as QQC2
 import QtQuick.Layouts
+import org.kde.kirigami as Kirigami
 
 Rectangle {
     id: bar
@@ -16,11 +17,9 @@ Rectangle {
     implicitHeight: 56
     color: Theme.surface
 
-    Rectangle {
+    Kirigami.Separator {
         anchors.bottom: parent.bottom
         width: parent.width
-        height: 1
-        color: Theme.border
     }
 
     RowLayout {
@@ -29,21 +28,19 @@ Rectangle {
         anchors.rightMargin: 16
         spacing: 12
 
-        QQC2.Label {
+        Kirigami.Heading {
+            level: 2
             text: bar.store.page === "software" ? "Software" : bar.store.page === "repos" ? "Repositories" : bar.store.page === "scan" ? "Scan with oysterAV" : "Settings"
-            font.pixelSize: Theme.headingSize
-            font.bold: true
             color: Theme.text
             Layout.preferredWidth: 180
         }
 
-        QQC2.TextField {
+        Kirigami.SearchField {
             id: search
             objectName: "search"
             visible: bar.onSoftware
             placeholderText: bar.store.config.search_in === "name" ? "Search by name" : "Search names and descriptions"
             text: bar.store.query
-            selectByMouse: true
             Layout.fillWidth: true
             Layout.maximumWidth: 520
             onTextEdited: debounce.restart()
@@ -70,7 +67,8 @@ Rectangle {
         QQC2.ToolButton {
             objectName: "sort-direction"
             visible: bar.onSoftware
-            text: bar.store.config.sort_descending ? "↓" : "↑"
+            icon.name: bar.store.config.sort_descending ? "view-sort-descending" : "view-sort-ascending"
+            display: QQC2.AbstractButton.IconOnly
             onClicked: bar.store.setConfig("sort_descending", !bar.store.config.sort_descending)
             QQC2.ToolTip.text: bar.store.config.sort_descending ? "Descending" : "Ascending"
             QQC2.ToolTip.visible: hovered
@@ -79,11 +77,12 @@ Rectangle {
             visible: bar.onSoftware
             spacing: 0
             Repeater {
-                model: [{ key: "list", text: "☰" }, { key: "grid", text: "▦" }, { key: "compact", text: "≣" }]
+                model: [{ key: "list", icon: "view-list-details" }, { key: "grid", icon: "view-grid" }, { key: "compact", icon: "view-list-text" }]
                 QQC2.ToolButton {
                     required property var modelData
                     objectName: "view-" + modelData.key
-                    text: modelData.text
+                    icon.name: modelData.icon
+                    display: QQC2.AbstractButton.IconOnly
                     checkable: true
                     checked: bar.store.config.view === modelData.key
                     onClicked: bar.store.setConfig("view", modelData.key)
@@ -93,7 +92,8 @@ Rectangle {
         QQC2.ToolButton {
             objectName: "toggle-inspector"
             visible: bar.onSoftware
-            text: "▐"
+            icon.name: "view-right-new"
+            display: QQC2.AbstractButton.IconOnly
             checkable: true
             checked: bar.store.config.show_inspector
             onClicked: bar.store.setConfig("show_inspector", !bar.store.config.show_inspector)

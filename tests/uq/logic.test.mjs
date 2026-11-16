@@ -73,3 +73,55 @@ test("progress follows step events", () => {
   assert.equal(s.steps[0].state, "done");
   assert.equal(L.reduce(s, "junk"), s);
 });
+
+test("settings are read with defaults and out-of-range words ignored", () => {
+  const v = L.configView({ output: { view: "grid", sort: "bogus", sort_descending: true, scan_installs: "all", aur_enabled: "yes" } });
+  assert.equal(v.values.view, "grid");
+  assert.equal(v.values.sort, "name");
+  assert.equal(v.values.sort_descending, true);
+  assert.equal(v.values.scan_installs, "all");
+  assert.equal(v.values.aur_enabled, true);
+  assert.equal(v.problem, "");
+  assert.notEqual(L.configView({ error: "boom" }).problem, "");
+  assert.equal(L.configView({ cancelled: true, error: "Cancelled" }), null);
+});
+
+test("config-set takes every setting and only plain words", () => {
+  for (const k of ["view", "sort", "group_by", "density", "search_in", "start_filter", "scan_installs", "sort_descending", "confirm_removals"]) assert.equal(L.argsProblem("config-set", [k, "off"]), "", k);
+  for (const bad of [["--json", "true"], ["view", "grid; rm"], ["view", "x".repeat(21)], ["scan_installs", "A"]]) assert.notEqual(L.argsProblem("config-set", bad), "", bad.join(" "));
+});
+
+test("repositories are read defensively and only the right ones can be changed", () => {
+  const v = L.reposView({ output: [
+    { name: "core", enabled: true, origin: "official", servers: [] },
+    { name: "multilib", enabled: false, origin: "official", servers: [] },
+    { name: "mine", enabled: true, origin: "added", servers: ["https://example.org/$arch"] },
+    { name: "Weird Name", enabled: true, origin: "other" },
+    { name: "chaotic-aur", enabled: true, origin: "other" },
+    null
+  ] });
+  assert.deepEqual(v.repos.map((r) => r.name), ["core", "multilib", "mine", "chaotic-aur"]);
+  assert.deepEqual(v.repos.map((r) => r.switchable), [false, true, false, false]);
+  assert.deepEqual(v.repos.map((r) => r.removable), [false, false, true, false]);
+  assert.notEqual(L.reposView({ error: "no" }).problem, "");
+});
+
+test("repository arguments refuse anything but a plain name, an HTTPS server and a full key", () => {
+  assert.equal(L.argsProblem("repo-add", ["my-repo", "https://example.org/$repo/os/$arch"]), "");
+  assert.notEqual(L.argsProblem("repo-add", ["my-repo", "http://example.org/x"]), "");
+  assert.notEqual(L.argsProblem("repo-add", ["--x", "https://example.org/x"]), "");
+  assert.notEqual(L.argsProblem("repo-add", ["my-repo", "https://a b"]), "");
+  assert.equal(L.argsProblem("repo-add-key", ["A".repeat(40), "my-repo", "https://example.org/x"]), "");
+  assert.notEqual(L.argsProblem("repo-add-key", ["A".repeat(39), "my-repo", "https://example.org/x"]), "");
+  assert.equal(L.argsProblem("repo-official", ["multilib", "on"]), "");
+  assert.notEqual(L.argsProblem("repo-official", ["multilib", "yes"]), "");
+});
+
+test("every repository and scan change is confirmed with a preview", () => {
+  for (const id of ["repo-add", "repo-add-key", "repo-remove", "repo-official", "scan-aur", "scan-all"]) {
+    const c = manifest.command.find((x) => x.id === id);
+    assert.ok(c.confirm && c.preview, `${id} needs confirm and preview`);
+    const p = manifest.command.find((x) => x.id === c.preview);
+    assert.ok(p.argv.includes("--dry-run"), `${c.preview} must not change anything`);
+  }
+});

@@ -7,20 +7,24 @@ bindleUP.
 
 ## Design (decided 2026-11-16)
 
-- Own repo, Rust core, GUI with cxx-qt and Kirigami reading uQ's theme tokens (planned).
-- Root only through its own `pkexec bindaru helper` with a polkit action (planned). AUR builds
+- Own repo, Rust core, GUI with cxx-qt and Kirigami reading uQ's theme tokens.
+- Root only through its own `pkexec bindaru helper` with a polkit action. AUR builds
   always run as you; the helper only runs `pacman -U` on the result.
 - **AUR review gate:** every AUR install and update shows the PKGBUILD (a diff on updates), a
   scan for risky patterns, and trust signals (maintainer, votes, orphan, out of date). The user
   must confirm. There is no setting that turns the gate off.
 - uQ app contract: `config show|set`, `--dry-run --json`, `--ndjson`, and a uQ Settings page
-  (`uq_api` 3) later.
+  (`uq_api` 3) with Browse, Installed, Repositories, Scan and Settings tabs.
 
 ## Status
 
-v0.0.2 (unreleased): the pure core (parsers, AUR flags, review scan and diff, planner, config) and a CLI that
-searches, shows, reviews PKGBUILDs offline and prints install/remove plans with `--dry-run`.
-The root helper (`pkexec bindaru helper`, polkit action in `packaging/polkit/`) now runs installs and removes; AUR installs stop at the review step until you pass `--ack <hash>` from `bindaru review --aur <pkg>` (or type the package name on a terminal). The GUI and the uQ page come next.
+v0.1.0: the `bindaru` command (search, info, installed, review, install, remove, repos, scan, config),
+the root helper (`pkexec bindaru helper`, polkit action in `packaging/polkit/`), the window
+(`bindaru-gui`: sidebar, header search, list/grid/compact view, inspector, repositories, scan and
+settings pages; Kirigami 6, coloured by uQ's theme tokens when uQ is running) and the uQ Settings page.
+AUR installs stop at the review step until you pass `--ack <hash>` from `bindaru review --aur <pkg>`
+(or type the package name on a terminal). The window needs Qt 6 and Kirigami 6, so it builds on Arch:
+`cargo build --release --workspace`.
 
 ```
 bindaru search firefox
@@ -29,7 +33,7 @@ bindaru review PKGBUILD --old PKGBUILD.installed
 bindaru config set aur_enabled false
 ```
 
-## Settings, repositories and oysterAV (v0.0.3, unreleased)
+## Settings, repositories and oysterAV
 
 - `bindaru config show|set`: AUR switches, how the list looks (`view`, `sort`, `sort_descending`, `group_by`, `density`, `show_inspector`, `search_in`, `start_filter`), behaviour, and `scan_installs` (`off`, `aur`, `all`).
 - `bindaru repos list|add|remove|official`: switch multilib and the testing repos, add a repository (HTTPS, signatures required, optional `--key <40-digit fingerprint>`), remove one you added. pacman.conf is backed up first; run bindleUP afterwards for a full upgrade.

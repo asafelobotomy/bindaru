@@ -19,6 +19,8 @@ SettingsPage {
     property var found: null
     property string searched: ""
     property var config: null
+    /// The repositories (Logic.reposView), null until `repos` answers.
+    property var reposInfo: null
     /// The AUR review waiting for a decision (Logic.reviewView), or null.
     property var pending: null
     property var progress: null
@@ -134,15 +136,41 @@ SettingsPage {
             page.runStream("remove", [pkg.name], pkg.name);
     }
 
+    function setting(key) {
+        return page.config !== null ? page.config.values[key] : Logic.CONFIG_DEFAULTS[key];
+    }
+
+    /// A switch gives true or false, a choice its word.
     function setConfig(key, value) {
-        if (page.busy || !page.ctx)
+        const text = value === true ? "true" : value === false ? "false" : String(value);
+        if (page.busy || !page.ctx || Logic.argsProblem("config-set", [key, text]) !== "")
             return;
         page.workingKey = "config";
-        page.ctx.command.run("config-set", [key, value ? "true" : "false"], result => {
+        page.ctx.command.run("config-set", [key, text], result => {
             page.workingKey = "";
             if (result && result.error !== undefined)
                 page.notes = Logic.withNote(page.notes, "config", { message: Logic.cut(result.error, 300), failed: true });
         });
+    }
+
+    function switchRepo(name, on) {
+        page.runStream("repo-official", [name, on ? "on" : "off"], "repos");
+    }
+
+    function removeRepo(name) {
+        page.runStream("repo-remove", [name], "repos");
+    }
+
+    function addRepo(name, server, fingerprint) {
+        const key = fingerprint.trim();
+        if (key === "")
+            page.runStream("repo-add", [name.trim(), server.trim()], "repo-add");
+        else
+            page.runStream("repo-add-key", [key, name.trim(), server.trim()], "repo-add");
+    }
+
+    function scan(everything) {
+        page.runStream(everything ? "scan-all" : "scan-aur", [], "scan");
     }
 
     function reload() {
@@ -161,6 +189,11 @@ SettingsPage {
                 const v = Logic.packagesView(r);
                 if (v !== null)
                     page.installedView = v;
+            });
+            page.ctx.command.watch("repos", r => {
+                const v = Logic.reposView(r);
+                if (v !== null)
+                    page.reposInfo = v;
             });
             page.ctx.command.watch("config", r => {
                 const v = Logic.configView(r);
@@ -226,24 +259,9 @@ SettingsPage {
             }
         }
 
-        SettingsCard {
-            title: page.progress !== null ? "Working" : ""
-            iconName: "view-refresh"
-            visible: page.progress !== null
-            wide: true
+        ProgressCard {
+            host: page
             Layout.fillWidth: true
-
-            QQC2.ProgressBar {
-                visible: page.streaming
-                indeterminate: true
-                Layout.fillWidth: true
-            }
-            UqLabel {
-                text: page.progress !== null ? Logic.progressLine(page.progress) : ""
-                wrapMode: Text.Wrap
-                color: page.progress !== null && page.progress.failed !== "" ? page.errorColor() : page.textColor()
-                Layout.fillWidth: true
-            }
         }
 
         SettingsCard {
@@ -312,8 +330,231 @@ SettingsPage {
     }
 
     SettingsTab {
+        title: "Repositories"
+        iconName: "network-server"
+
+        SettingsCard {
+            title: "Repositories"
+            iconName: "network-server"
+            help: "Packages come from the repositories that are on, in this order. After a change bindaru refreshes the package lists; run bindleUP for a full system upgrade."
+            wide: true
+            Layout.fillWidth: true
+
+            ErrorCard {
+                title: "Couldn't read the repositories"
+                detail: page.reposInfo ? page.reposInfo.problem : ""
+                visible: page.reposInfo !== null && page.reposInfo.problem !== ""
+                Layout.fillWidth: true
+            }
+            Repeater {
+                model: page.reposInfo !== null ? page.reposInfo.repos : []
+
+                SettingRow {
+                    id: repoRow
+
+                    required property var modelData
+
+                    settingId: "repositories"
+                    label: repoRow.modelData.name + " — " + repoRow.modelData.where
+                    highlight: page.highlight
+                    Layout.fillWidth: true
+
+                    QQC2.Switch {
+                        objectName: "repo-switch-" + repoRow.modelData.name
+                        visible: repoRow.modelData.switchable
+                        checked: repoRow.modelData.enabled
+                        enabled: !page.busy
+                        onToggled: page.switchRepo(repoRow.modelData.name, checked)
+                    }
+                    QQC2.Button {
+                        objectName: "repo-remove-" + repoRow.modelData.name
+                        visible: repoRow.modelData.removable
+                        text: "Remove"
+                        icon.name: "list-remove"
+                        enabled: !page.busy
+                        onClicked: page.removeRepo(repoRow.modelData.name)
+                    }
+                }
+            }
+            Outcome {
+                host: page
+                noteKey: "repos"
+                Layout.fillWidth: true
+            }
+        }
+
+        SettingsCard {
+            title: "Add a repository"
+            iconName: "list-add"
+            help: "Only HTTPS servers, and packages must be signed. If the repository has its own signing key, paste its full 40-digit fingerprint: bindaru trusts it as a separate step."
+            wide: true
+            Layout.fillWidth: true
+
+            SettingRow {
+                label: "Name"
+                Layout.fillWidth: true
+                QQC2.TextField {
+                    id: repoName
+                    objectName: "repo-name"
+                    placeholderText: "my-repo"
+                    implicitWidth: 260
+                    enabled: !page.busy
+                }
+            }
+            SettingRow {
+                label: "Server"
+                Layout.fillWidth: true
+                QQC2.TextField {
+                    id: repoServer
+                    objectName: "repo-server"
+                    placeholderText: "https://example.org/$repo/os/$arch"
+                    implicitWidth: 260
+                    enabled: !page.busy
+                }
+            }
+            SettingRow {
+                label: "Signing key (optional)"
+                Layout.fillWidth: true
+                QQC2.TextField {
+                    id: repoKey
+                    objectName: "repo-key"
+                    placeholderText: "40-digit fingerprint"
+                    implicitWidth: 260
+                    enabled: !page.busy
+                }
+                QQC2.Button {
+                    objectName: "repo-add"
+                    text: "Add repository"
+                    icon.name: "list-add"
+                    enabled: !page.busy && repoName.text.trim() !== "" && repoServer.text.trim() !== ""
+                    onClicked: page.addRepo(repoName.text, repoServer.text, repoKey.text)
+                }
+            }
+            Outcome {
+                host: page
+                noteKey: "repo-add"
+                Layout.fillWidth: true
+            }
+        }
+
+        ProgressCard {
+            host: page
+            Layout.fillWidth: true
+        }
+    }
+
+    SettingsTab {
+        title: "Scan"
+        iconName: "security-medium"
+
+        SettingsCard {
+            title: "Scan what is installed"
+            iconName: "security-medium"
+            help: "oysterAV looks at the programs, libraries and settings files each package installed. Software from the AUR is the best place to start."
+            wide: true
+            Layout.fillWidth: true
+
+            SettingRow {
+                label: "Scan now"
+                Layout.fillWidth: true
+                QQC2.Button {
+                    objectName: "scan-aur"
+                    text: "AUR and other outside packages"
+                    enabled: !page.busy
+                    onClicked: page.scan(false)
+                }
+                QQC2.Button {
+                    objectName: "scan-all"
+                    text: "Everything installed"
+                    enabled: !page.busy
+                    onClicked: page.scan(true)
+                }
+            }
+            SettingRow {
+                settingId: "scan-installs"
+                label: "Scan new installs"
+                highlight: page.highlight
+                Layout.fillWidth: true
+
+                UqComboBox {
+                    objectName: "set-scan_installs"
+                    model: ["Never", "AUR builds only", "Everything I install"]
+                    currentIndex: ["off", "aur", "all"].indexOf(page.setting("scan_installs"))
+                    onActivated: i => page.setConfig("scan_installs", ["off", "aur", "all"][i])
+                }
+            }
+            Outcome {
+                host: page
+                noteKey: "scan"
+                Layout.fillWidth: true
+            }
+        }
+
+        ProgressCard {
+            host: page
+            Layout.fillWidth: true
+        }
+    }
+
+    SettingsTab {
         title: "Settings"
         iconName: "configure"
+
+        SettingsCard {
+            title: "Browsing"
+            iconName: "view-list-details"
+            Layout.fillWidth: true
+
+            component Choice: SettingRow {
+                id: choice
+                property string key
+                property var names: []
+                property var values: []
+                settingId: "layout"
+                highlight: page.highlight
+                Layout.fillWidth: true
+                UqComboBox {
+                    objectName: "set-" + choice.key
+                    model: choice.names
+                    currentIndex: choice.values.indexOf(page.setting(choice.key))
+                    onActivated: i => page.setConfig(choice.key, choice.values[i])
+                }
+            }
+            component Toggle: SwitchRow {
+                id: toggle
+                property string key
+                settingId: "layout"
+                highlight: page.highlight
+                value: page.setting(toggle.key) === true
+                onChosen: v => page.setConfig(toggle.key, v)
+                Layout.fillWidth: true
+            }
+
+            Choice { label: "Layout"; key: "view"; names: ["List", "Grid", "Compact"]; values: ["list", "grid", "compact"] }
+            Choice { label: "Spacing"; key: "density"; names: ["Comfortable", "Compact"]; values: ["comfortable", "compact"] }
+            Choice { label: "Sort by"; key: "sort"; names: ["Name", "Size", "Version", "Source", "Popularity"]; values: ["name", "size", "version", "repo", "popularity"] }
+            Toggle { label: "Sort in descending order"; key: "sort_descending" }
+            Choice { label: "Group by"; key: "group_by"; names: ["Nothing", "Repository", "Source (repositories or AUR)"]; values: ["none", "repo", "source"] }
+            Choice { label: "Start on"; key: "start_filter"; names: ["Everything", "Installed", "Repositories", "The AUR"]; values: ["all", "installed", "repos", "aur"] }
+            Choice { label: "Search in"; key: "search_in"; names: ["Names only", "Names and descriptions"]; values: ["name", "name-description"] }
+            Toggle { label: "Show the inspector"; key: "show_inspector" }
+            Toggle { label: "Show packages that were only installed as dependencies"; key: "show_dependencies" }
+        }
+
+        SettingsCard {
+            title: "Removing software"
+            iconName: "edit-delete"
+            Layout.fillWidth: true
+
+            SwitchRow {
+                settingId: "installed"
+                label: "Ask before removing"
+                highlight: page.highlight
+                value: page.setting("confirm_removals") === true
+                onChosen: v => page.setConfig("confirm_removals", v)
+                Layout.fillWidth: true
+            }
+        }
 
         SettingsCard {
             title: "The AUR"
@@ -325,7 +566,7 @@ SettingsPage {
                 settingId: "aur"
                 label: "Use the AUR"
                 highlight: page.highlight
-                value: page.config === null || page.config.aurEnabled
+                value: page.setting("aur_enabled") === true
                 onChosen: v => page.setConfig("aur_enabled", v)
                 Layout.fillWidth: true
             }
@@ -333,15 +574,24 @@ SettingsPage {
                 settingId: "aur-risky"
                 label: "Show orphaned or outdated AUR packages"
                 highlight: page.highlight
-                value: page.config === null || page.config.aurShowRisky
+                value: page.setting("aur_show_risky") === true
                 onChosen: v => page.setConfig("aur_show_risky", v)
                 Layout.fillWidth: true
             }
-            Outcome {
-                host: page
-                noteKey: "config"
+            SwitchRow {
+                settingId: "aur-risky"
+                label: "Show what changed when an AUR package updates"
+                highlight: page.highlight
+                value: page.setting("aur_update_diff") === true
+                onChosen: v => page.setConfig("aur_update_diff", v)
                 Layout.fillWidth: true
             }
+        }
+
+        Outcome {
+            host: page
+            noteKey: "config"
+            Layout.fillWidth: true
         }
     }
 }

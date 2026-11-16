@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     container: archlinux:latest
     steps:
-      - run: pacman -Syu --noconfirm --needed base-devel git rustup github-cli curl
+      - run: pacman -Syu --noconfirm --needed base-devel git rustup github-cli curl clang qt6-declarative kirigami
       - uses: actions/checkout@v4
       - name: Check the version
         run: |
@@ -25,13 +25,14 @@ jobs:
       - name: Build and test
         run: |
           rustup default stable
-          cargo build --release --locked
-          cargo test --release --locked
+          cargo build --release --locked --workspace
+          cargo test --release --locked --workspace
       - name: Collect artifacts
         run: |
           v=${GITHUB_REF_NAME#v}
           mkdir -p dist
           cp target/release/bindaru "dist/bindaru-$v-x86_64-linux"
+          cp target/release/bindaru-gui "dist/bindaru-gui-$v-x86_64-linux"
           # The checksum must be of the tarball the AUR source line downloads: GitHub's own.
           curl -fsSL -o "dist/bindaru-$v.tar.gz" "https://github.com/$GITHUB_REPOSITORY/archive/refs/tags/$GITHUB_REF_NAME.tar.gz"
           sed -e "s/^pkgver=.*/pkgver=$v/" packaging/aur/bindaru/PKGBUILD > dist/PKGBUILD

@@ -2,14 +2,34 @@
 // tests can drive it with a fake backend.
 import QtQuick
 import org.bindaru.app
+import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 
-Rectangle {
+QQC2.Pane {
     id: view
 
     property var store
 
-    color: Theme.bg
+    padding: 0
+    background: Rectangle { color: Theme.bg }
+    // The controls draw from this palette, so uQ's colours reach every button, field and switch.
+    palette {
+        window: Theme.bg
+        windowText: Theme.text
+        base: Theme.surfaceAlt
+        alternateBase: Theme.surface
+        text: Theme.text
+        button: Theme.overlay
+        buttonText: Theme.text
+        highlight: Theme.accent
+        highlightedText: Theme.accentText
+        placeholderText: Theme.textMuted
+        mid: Theme.border
+        dark: Theme.border
+        light: Theme.overlay
+        toolTipBase: Theme.overlay
+        toolTipText: Theme.text
+    }
 
     ColumnLayout {
         anchors.fill: parent

@@ -1,31 +1,31 @@
 pragma Singleton
 import QtQuick
+import org.kde.kirigami as Kirigami
 
 // Every colour, radius and font the views use. On uQ these come from uQ's theme tokens (set by
-// Main from backend.themeJson); elsewhere from the desktop's palette.
+// Main from backend.themeJson); elsewhere from Kirigami's colour scheme (the desktop's).
 QtObject {
     id: theme
 
     property var tokens: ({ present: false })
     readonly property bool uq: tokens.present === true
-    readonly property SystemPalette pal: SystemPalette { colorGroup: SystemPalette.Active }
 
     function pick(key, fallback) {
         return uq && tokens.colors && tokens.colors[key] ? tokens.colors[key] : fallback;
     }
 
-    readonly property color bg: pick("bg", pal.window)
-    readonly property color surface: pick("surface", pal.base)
-    readonly property color surfaceAlt: pick("surface_alt", pal.alternateBase)
-    readonly property color overlay: pick("overlay", Qt.tint(pal.window, Qt.alpha(pal.text, 0.08)))
-    readonly property color text: pick("text", pal.windowText)
-    readonly property color textMuted: pick("text_muted", Qt.tint(pal.window, Qt.alpha(pal.windowText, 0.6)))
-    readonly property color accent: pick("accent", pal.highlight)
-    readonly property color accentText: pick("accent_text", pal.highlightedText)
-    readonly property color border: pick("border", Qt.tint(pal.window, Qt.alpha(pal.windowText, 0.2)))
-    readonly property color success: pick("success", "#2e9e5b")
-    readonly property color warning: pick("warning", "#d98a1f")
-    readonly property color error: pick("error", "#d1424f")
+    readonly property color bg: pick("bg", Kirigami.Theme.backgroundColor)
+    readonly property color surface: pick("surface", Qt.tint(Kirigami.Theme.backgroundColor, Qt.alpha(Kirigami.Theme.textColor, 0.04)))
+    readonly property color surfaceAlt: pick("surface_alt", Kirigami.Theme.alternateBackgroundColor)
+    readonly property color overlay: pick("overlay", Qt.tint(Kirigami.Theme.backgroundColor, Qt.alpha(Kirigami.Theme.textColor, 0.08)))
+    readonly property color text: pick("text", Kirigami.Theme.textColor)
+    readonly property color textMuted: pick("text_muted", Qt.tint(Kirigami.Theme.backgroundColor, Qt.alpha(Kirigami.Theme.textColor, 0.6)))
+    readonly property color accent: pick("accent", Kirigami.Theme.highlightColor)
+    readonly property color accentText: pick("accent_text", Kirigami.Theme.highlightedTextColor)
+    readonly property color border: pick("border", Qt.tint(Kirigami.Theme.backgroundColor, Qt.alpha(Kirigami.Theme.textColor, 0.2)))
+    readonly property color success: pick("success", Kirigami.Theme.positiveTextColor)
+    readonly property color warning: pick("warning", Kirigami.Theme.neutralTextColor)
+    readonly property color error: pick("error", Kirigami.Theme.negativeTextColor)
 
     readonly property int radius: uq && tokens.radius ? tokens.radius : 8
     readonly property string fontUi: uq && tokens.fontUi ? tokens.fontUi : ""
