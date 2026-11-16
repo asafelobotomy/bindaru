@@ -131,6 +131,79 @@ pub fn remove(names: &[String]) -> Result<Plan, String> {
     ))
 }
 
+/// One line of the confirmation sheet (the uQ settings-page preview document).
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Change {
+    pub group: String,
+    pub label: String,
+    pub detail: String,
+    pub reversible: bool,
+}
+
+/// What `--dry-run --json` prints: the uQ preview document, plus the exact steps.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Preview {
+    pub summary: String,
+    pub changes: Vec<Change>,
+    pub would_refuse: bool,
+    pub reason: String,
+    pub plan: Plan,
+}
+
+fn names_of(step: &Step) -> Vec<String> {
+    let skip = if step.id == "remove" { 4 } else { 5 };
+    step.argv.iter().skip(skip).cloned().collect()
+}
+
+pub fn preview(plan: &Plan) -> Preview {
+    let mut changes = Vec::new();
+    for step in &plan.steps {
+        let ch = |group: &str, label: &str, detail: &str, reversible| Change {
+            group: group.into(),
+            label: label.into(),
+            detail: detail.into(),
+            reversible,
+        };
+        if step.id == "repo-install" {
+            changes.extend(names_of(step).iter().map(|n| {
+                ch(
+                    "Installed from the repositories",
+                    n,
+                    "and the packages it needs",
+                    true,
+                )
+            }));
+        } else if step.id == "remove" {
+            changes.extend(names_of(step).iter().map(|n| {
+                ch(
+                    "Removed",
+                    n,
+                    "with its settings and any packages nothing else needs",
+                    true,
+                )
+            }));
+        } else if let Some(n) = step.id.strip_prefix("install-") {
+            changes.push(ch(
+                "Built from the AUR and installed",
+                n,
+                "built as you from a recipe you reviewed",
+                true,
+            ));
+        }
+    }
+    let summary = match changes.len() {
+        1 => format!("1 package: {}", plan.action),
+        n => format!("{n} packages: {}", plan.action),
+    };
+    Preview {
+        summary,
+        changes,
+        would_refuse: false,
+        reason: String::new(),
+        plan: plan.clone(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -171,5 +244,14 @@ mod tests {
         assert!(install(&v(&["--overwrite=*"]), &[]).is_err());
         assert!(remove(&v(&["a;b"])).is_err());
         assert!(install(&[], &[]).is_err());
+    }
+    #[test]
+    fn preview_lists_each_package() {
+        let p = preview(&install(&v(&["htop"]), &v(&["paru-bin"])).unwrap());
+        assert_eq!(p.changes.len(), 2);
+        assert_eq!(p.changes[1].group, "Built from the AUR and installed");
+        let r = preview(&remove(&v(&["htop", "btop"])).unwrap());
+        assert_eq!(r.summary, "2 packages: remove");
+        assert!(!r.would_refuse);
     }
 }

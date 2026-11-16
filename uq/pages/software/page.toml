@@ -1,0 +1,118 @@
+# bindaru's page in uQ Settings (under Apps): browse, install and remove software, with the AUR
+# review shown here before anything from the AUR is built. Installed to
+# /usr/share/uq/settings/pages/software/ by bindaru's package; inert without uQ.
+# Everything goes through the `bindaru` command line; reference: docs/settings-pages.md in uQ.
+uq_api = 3
+id = "software"
+name = "Software"
+icon = "bindaru"
+category = "apps"
+qml = "Page.qml"
+keywords = ["software", "packages", "pacman", "aur", "install", "uninstall", "store", "bindaru"]
+
+[[setting]]
+id = "browse"
+label = "Find and install software"
+keywords = ["search", "package", "pacman", "aur", "get"]
+
+[[setting]]
+id = "installed"
+label = "Installed software"
+keywords = ["remove", "uninstall", "list", "packages"]
+
+[[setting]]
+id = "aur"
+label = "Use the AUR"
+keywords = ["arch user repository", "community", "pkgbuild"]
+
+[[setting]]
+id = "aur-risky"
+label = "Show orphaned or outdated AUR packages"
+keywords = ["orphan", "out of date", "flagged"]
+
+[requires]
+bins = ["bindaru"]
+
+# ---- reads
+[[command]]
+id = "installed"
+argv = ["/usr/bin/bindaru", "installed", "--json"]
+output = "json"
+timeout_ms = 20000
+# pacman holds this lock for the length of every transaction, so the list refreshes after each.
+watch = { files = ["/var/lib/pacman/db.lck"] }
+
+[[command]]
+id = "config"
+argv = ["/usr/bin/bindaru", "config", "show", "--json"]
+output = "json"
+timeout_ms = 10000
+watch = { files = ["~/.config/bindaru/config.toml"] }
+
+[[command]]
+id = "search"
+argv = ["/usr/bin/bindaru", "search", "--json"]
+output = "json"
+timeout_ms = 30000
+args = [{ name = "query", pattern = "^[A-Za-z0-9][A-Za-z0-9._+@ -]{1,63}$" }]
+
+# Downloads the recipe (PKGBUILD and install scripts) of an AUR package and prints the review:
+# findings, and the hash `install-aur` needs. Builds and installs nothing.
+[[command]]
+id = "review-aur"
+argv = ["/usr/bin/bindaru", "review", "--json", "--aur"]
+output = "json"
+timeout_ms = 120000
+args = [{ name = "package", pattern = "^[a-z0-9@._+][a-z0-9@._+-]{0,254}$" }]
+
+# ---- what an action would change: reads, with the same arguments as the action.
+[[command]]
+id = "preview-install"
+argv = ["/usr/bin/bindaru", "install", "--dry-run", "--json"]
+output = "json"
+timeout_ms = 20000
+args = [{ name = "package", pattern = "^[a-z0-9@._+][a-z0-9@._+-]{0,254}$" }]
+
+[[command]]
+id = "preview-remove"
+argv = ["/usr/bin/bindaru", "remove", "--dry-run", "--json"]
+output = "json"
+timeout_ms = 20000
+args = [{ name = "package", pattern = "^[a-z0-9@._+][a-z0-9@._+-]{0,254}$" }]
+
+# ---- actions. Streamed: a line per step and per line of pacman's output. Root comes from
+# bindaru's own helper (polkit asks for the password); the page never runs anything as root.
+[[command]]
+id = "install"
+argv = ["/usr/bin/bindaru", "install", "--ndjson"]
+output = "ndjson"
+timeout_ms = 600000
+args = [{ name = "package", pattern = "^[a-z0-9@._+][a-z0-9@._+-]{0,254}$" }]
+confirm = "Install %s?"
+preview = "preview-install"
+
+# The review card is the confirmation: this runs only after the person said they read the
+# recipe the hash names; `bindaru` refuses if the recipe changed since.
+[[command]]
+id = "install-aur"
+argv = ["/usr/bin/bindaru", "install", "--aur", "--ndjson", "--ack"]
+output = "ndjson"
+timeout_ms = 600000
+args = [{ name = "hash", pattern = "^[0-9a-f]{64}$" }, { name = "package", pattern = "^[a-z0-9@._+][a-z0-9@._+-]{0,254}$" }]
+
+[[command]]
+id = "remove"
+argv = ["/usr/bin/bindaru", "remove", "--ndjson"]
+output = "ndjson"
+timeout_ms = 600000
+args = [{ name = "package", pattern = "^[a-z0-9@._+][a-z0-9@._+-]{0,254}$" }]
+confirm = "Remove %s and what only it needed?"
+preview = "preview-remove"
+
+# ---- settings: `bindaru config` checks each value before it writes.
+[[command]]
+id = "config-set"
+argv = ["/usr/bin/bindaru", "config", "set", "--json"]
+output = "json"
+timeout_ms = 10000
+args = [{ name = "key", pattern = "^(aur_enabled|aur_update_diff|aur_show_risky)$" }, { name = "value", pattern = "^(true|false)$" }]

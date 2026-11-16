@@ -220,7 +220,7 @@ fn do_plan(
     if *ndjson {
         p.steps.iter().for_each(emit);
     } else if *json {
-        emit(p);
+        emit(&plan::preview(p));
     } else {
         for s in &p.steps {
             let who = if s.who == plan::Who::Root {
