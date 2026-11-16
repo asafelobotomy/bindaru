@@ -1,6 +1,8 @@
 //! `bindaru`: the CLI of the pacman and AUR store. Follows the uQ app contract:
 //! `config show|set`, `--dry-run --json`, `--ndjson` (one JSON event per line).
 mod cfg;
+mod exec;
+mod helper;
 mod sys;
 
 use bindaru_core::{config::Config, plan, review};
@@ -34,10 +36,17 @@ enum Cmd {
     Installed,
     /// Review a PKGBUILD file offline: findings, and a diff when --old is given.
     Review {
-        pkgbuild: String,
+        /// A PKGBUILD file; or use --aur.
+        pkgbuild: Option<String>,
         #[arg(long)]
         old: Option<String>,
+        /// Download this AUR package's recipe and review it; prints the hash for `install --ack`.
+        #[arg(long)]
+        aur: Option<String>,
     },
+    /// Root helper (started by pkexec; not for direct use).
+    #[command(hide = true)]
+    Helper,
     /// Install packages (AUR ones go through the review gate).
     Install {
         names: Vec<String>,
@@ -45,6 +54,9 @@ enum Cmd {
         aur: bool,
         #[arg(long)]
         dry_run: bool,
+        /// Hash printed by `review --aur`: confirms you read exactly that recipe.
+        #[arg(long)]
+        ack: Option<String>,
     },
     /// Remove packages and their unneeded dependencies.
     Remove {
@@ -69,7 +81,7 @@ fn emit(v: &impl serde::Serialize) {
     println!("{}", serde_json::to_string(v).expect("serializes"));
 }
 
-fn run(cli: Cli) -> Result<(), String> {
+fn run(cli: Cli) -> Result<(), exec::Failure> {
     let cfg = cfg::load()?;
     match cli.cmd {
         Cmd::Config {
@@ -133,14 +145,26 @@ fn run(cli: Cli) -> Result<(), String> {
                 v.iter().for_each(|p| println!("{} {}", p.name, p.version))
             }
         }
-        Cmd::Review { pkgbuild, old } => {
+        Cmd::Helper => helper::main()?,
+        Cmd::Review { pkgbuild, old, aur } => {
             let read = |p: &str| std::fs::read_to_string(p).map_err(|e| format!("{p}: {e}"));
-            let new = read(&pkgbuild)?;
+            let (name, new, hash) = match (&pkgbuild, &aur) {
+                (Some(f), None) => (f.clone(), read(f)?, None),
+                (None, Some(pkg)) => {
+                    bindaru_core::names::check_names(std::slice::from_ref(pkg))?;
+                    let (hash, text, _) = exec::recipe_hash(&exec::fetch(pkg)?)?;
+                    (pkg.clone(), text, Some(hash))
+                }
+                _ => return Err("give a PKGBUILD file or --aur <package>".to_string().into()),
+            };
             let old = old.as_deref().map(read).transpose()?;
-            let r = review::review(&pkgbuild, &new, old.as_deref());
+            let r = review::review(&name, &new, old.as_deref());
             if cli.json {
-                emit(&r)
+                emit(&serde_json::json!({"review": r, "hash": hash}))
             } else {
+                if let Some(h) = &hash {
+                    println!("Recipe hash (pass to `install --ack`): {h}");
+                }
                 for f in &r.findings {
                     println!(
                         "{:?} line {}: {}\n    {}",
@@ -159,6 +183,7 @@ fn run(cli: Cli) -> Result<(), String> {
             names,
             aur,
             dry_run,
+            ack,
         } => {
             let (repo, aur_names) = if aur {
                 (vec![], names)
@@ -166,19 +191,31 @@ fn run(cli: Cli) -> Result<(), String> {
                 (names, vec![])
             };
             let p = plan::install(&repo, &aur_names)?;
-            do_plan(&cli.json, &cli.ndjson, dry_run, &p)?;
+            do_plan(&cli.json, &cli.ndjson, dry_run, ack, &p)?;
         }
         Cmd::Remove { names, dry_run } => {
             let p = plan::remove(&names)?;
-            do_plan(&cli.json, &cli.ndjson, dry_run, &p)?;
+            do_plan(&cli.json, &cli.ndjson, dry_run, None, &p)?;
         }
     }
     Ok(())
 }
 
-fn do_plan(json: &bool, ndjson: &bool, dry_run: bool, p: &plan::Plan) -> Result<(), String> {
+fn do_plan(
+    json: &bool,
+    ndjson: &bool,
+    dry_run: bool,
+    ack: Option<String>,
+    p: &plan::Plan,
+) -> Result<(), exec::Failure> {
     if !dry_run {
-        return Err("running a plan needs the root helper, which is not built yet; use --dry-run to see the steps".into());
+        return exec::run(
+            p,
+            &exec::Opts {
+                ndjson: *ndjson,
+                ack,
+            },
+        );
     }
     if *ndjson {
         p.steps.iter().for_each(emit);
@@ -208,7 +245,8 @@ fn do_plan(json: &bool, ndjson: &bool, dry_run: bool, p: &plan::Plan) -> Result<
 fn main() -> ExitCode {
     match run(Cli::parse()) {
         Ok(()) => ExitCode::SUCCESS,
-        Err(e) => {
+        Err(exec::Failure::ReviewRequired) => ExitCode::from(exec::REVIEW_REQUIRED),
+        Err(exec::Failure::Msg(e)) => {
             eprintln!("bindaru: {e}");
             ExitCode::FAILURE
         }
