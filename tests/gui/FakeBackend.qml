@@ -26,6 +26,11 @@ QtObject {
         return { code: 1, out: "", err: "no canned reply for " + full };
     }
 
+    property int bindleupOpened: 0
+    function openBindleup() {
+        bindleupOpened += 1;
+    }
+
     function run(id, argvJson) {
         const argv = JSON.parse(argvJson);
         fake.calls.push(["run", argv]);

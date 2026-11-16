@@ -105,6 +105,11 @@ QtObject {
         run(["repos", "list", "--json"], r => { store.repos = Logic.reposView(r); });
     }
 
+    /// System upgrades are bindleUP's job: this opens its window.
+    function openBindleUp() {
+        store.backend.openBindleup();
+    }
+
     function reloadInstalled() {
         run(["installed", "--json"], r => {
             const v = Logic.packagesView(r);
