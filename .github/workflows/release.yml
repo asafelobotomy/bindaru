@@ -1,0 +1,45 @@
+name: Release
+
+# Pushing a tag v<version> builds the release binary in Arch, checks the tag matches Cargo.toml,
+# and publishes a GitHub release with the binary, a source-build PKGBUILD whose checksum is real,
+# and SHA256SUMS. The PKGBUILD is for you to push to the AUR (the AUR key stays on your machine).
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - run: pacman -Syu --noconfirm --needed base-devel git rustup github-cli curl
+      - uses: actions/checkout@v4
+      - name: Check the version
+        run: |
+          want=${GITHUB_REF_NAME#v}
+          have=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          [ "$want" = "$have" ] || { echo "::error::tag $want but Cargo.toml says $have"; exit 1; }
+      - name: Build and test
+        run: |
+          rustup default stable
+          cargo build --release --locked
+          cargo test --release --locked
+      - name: Collect artifacts
+        run: |
+          v=${GITHUB_REF_NAME#v}
+          mkdir -p dist
+          cp target/release/bindaru "dist/bindaru-$v-x86_64-linux"
+          # The checksum must be of the tarball the AUR source line downloads: GitHub's own.
+          curl -fsSL -o "dist/bindaru-$v.tar.gz" "https://github.com/$GITHUB_REPOSITORY/archive/refs/tags/$GITHUB_REF_NAME.tar.gz"
+          sed -e "s/^pkgver=.*/pkgver=$v/" packaging/aur/bindaru/PKGBUILD > dist/PKGBUILD
+          sum=$(sha256sum "dist/bindaru-$v.tar.gz" | cut -d' ' -f1)
+          sed -i "s/^sha256sums=.*/sha256sums=('$sum')/" dist/PKGBUILD
+          (cd dist && sha256sum bindaru-* PKGBUILD > SHA256SUMS)
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "bindaru ${GITHUB_REF_NAME#v}" --generate-notes dist/*
