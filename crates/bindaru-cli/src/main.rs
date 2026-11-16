@@ -3,6 +3,8 @@
 mod cfg;
 mod exec;
 mod helper;
+mod repos_cmd;
+mod scan_cmd;
 mod sys;
 
 use bindaru_core::{config::Config, plan, review};
@@ -43,6 +45,23 @@ enum Cmd {
         /// Download this AUR package's recipe and review it; prints the hash for `install --ack`.
         #[arg(long)]
         aur: Option<String>,
+    },
+    /// Repositories: list, add, remove, and switch the official optional ones.
+    Repos {
+        #[command(subcommand)]
+        action: repos_cmd::ReposCmd,
+    },
+    /// Scan installed software with oysterAV.
+    Scan {
+        names: Vec<String>,
+        /// Packages from the AUR and other outside sources.
+        #[arg(long)]
+        aur: bool,
+        /// Every installed package.
+        #[arg(long)]
+        all: bool,
+        #[arg(long)]
+        dry_run: bool,
     },
     /// Root helper (started by pkexec; not for direct use).
     #[command(hide = true)]
@@ -130,11 +149,18 @@ fn run(cli: Cli) -> Result<(), exec::Failure> {
             }
         }
         Cmd::Info { name } => {
-            let p = sys::info(&name)?;
+            let d = sys::details(&name)?;
             if cli.json {
-                emit(&p)
+                emit(&d)
             } else {
-                println!("{}/{} {}\n{}", p.repo, p.name, p.version, p.description)
+                let p = &d["package"];
+                println!(
+                    "{}/{} {}\n{}",
+                    p["repo"].as_str().unwrap_or(""),
+                    name,
+                    p["version"].as_str().unwrap_or(""),
+                    p["description"].as_str().unwrap_or("")
+                )
             }
         }
         Cmd::Installed => {
@@ -146,6 +172,13 @@ fn run(cli: Cli) -> Result<(), exec::Failure> {
             }
         }
         Cmd::Helper => helper::main()?,
+        Cmd::Repos { action } => repos_cmd::run(action, cli.json, cli.ndjson)?,
+        Cmd::Scan {
+            names,
+            aur,
+            all,
+            dry_run,
+        } => scan_cmd::run(names, aur, all, dry_run, cli.json, cli.ndjson)?,
         Cmd::Review { pkgbuild, old, aur } => {
             let read = |p: &str| std::fs::read_to_string(p).map_err(|e| format!("{p}: {e}"));
             let (name, new, hash) = match (&pkgbuild, &aur) {
@@ -201,7 +234,7 @@ fn run(cli: Cli) -> Result<(), exec::Failure> {
     Ok(())
 }
 
-fn do_plan(
+pub(crate) fn do_plan(
     json: &bool,
     ndjson: &bool,
     dry_run: bool,
@@ -209,13 +242,14 @@ fn do_plan(
     p: &plan::Plan,
 ) -> Result<(), exec::Failure> {
     if !dry_run {
-        return exec::run(
+        exec::run(
             p,
             &exec::Opts {
                 ndjson: *ndjson,
                 ack,
             },
-        );
+        )?;
+        return scan_after_install(p, *json, *ndjson);
     }
     if *ndjson {
         p.steps.iter().for_each(emit);
@@ -240,6 +274,20 @@ fn do_plan(
         }
     }
     Ok(())
+}
+
+/// After an install, scan what was installed with oysterAV when the setting asks for it.
+fn scan_after_install(p: &plan::Plan, json: bool, ndjson: bool) -> Result<(), exec::Failure> {
+    let setting = cfg::load()?.scan_installs;
+    let names: Vec<String> = plan::installed_by(p)
+        .into_iter()
+        .filter(|(_, aur)| bindaru_core::scan::should_scan(&setting, *aur))
+        .map(|(n, _)| n)
+        .collect();
+    if names.is_empty() || !std::path::Path::new(bindaru_core::scan::OYST_CLI).exists() {
+        return Ok(());
+    }
+    scan_cmd::run(names, false, false, false, json, ndjson)
 }
 
 fn main() -> ExitCode {

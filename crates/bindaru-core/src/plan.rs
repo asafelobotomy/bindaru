@@ -1,6 +1,8 @@
 //! The planner: turns a request into the exact steps bindaru would run (what `--dry-run --json`
 //! prints and what the uQ page previews). Pure: no process is started here.
 use crate::names::check_names;
+use crate::protocol::Request;
+use crate::repos::{self, NewRepo};
 use serde::Serialize;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -20,6 +22,9 @@ pub struct Step {
     pub argv: Vec<String>,
     /// The user must confirm a review before this step runs.
     pub needs_review: bool,
+    /// What the root helper is asked to do, for root steps that go to it as one request.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request: Option<Request>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -61,6 +66,9 @@ pub fn install(repo: &[String], aur: &[String]) -> Result<Plan, String> {
             title: format!("Install {}", repo.join(", ")),
             argv,
             needs_review: false,
+            request: Some(Request::Install {
+                names: repo.to_vec(),
+            }),
         });
     }
     for p in aur {
@@ -79,6 +87,7 @@ pub fn install(repo: &[String], aur: &[String]) -> Result<Plan, String> {
                 &format!("<cache>/{p}"),
             ]),
             needs_review: false,
+            request: None,
         });
         steps.push(Step {
             id: format!("review-{p}"),
@@ -86,6 +95,7 @@ pub fn install(repo: &[String], aur: &[String]) -> Result<Plan, String> {
             title: format!("Review {p}'s PKGBUILD"),
             argv: vec![],
             needs_review: true,
+            request: None,
         });
         steps.push(Step {
             id: format!("build-{p}"),
@@ -93,6 +103,7 @@ pub fn install(repo: &[String], aur: &[String]) -> Result<Plan, String> {
             title: format!("Build {p}"),
             argv: s(&["/usr/bin/makepkg", "--syncdeps", "--noconfirm", "--needed"]),
             needs_review: false,
+            request: None,
         });
         steps.push(Step {
             id: format!("install-{p}"),
@@ -106,6 +117,7 @@ pub fn install(repo: &[String], aur: &[String]) -> Result<Plan, String> {
                 &format!("<cache>/{p}/*.pkg.tar.zst"),
             ]),
             needs_review: false,
+            request: None,
         });
     }
     Ok(finish("install", steps))
@@ -127,8 +139,111 @@ pub fn remove(names: &[String]) -> Result<Plan, String> {
             title: format!("Remove {}", names.join(", ")),
             argv,
             needs_review: false,
+            request: Some(Request::Remove {
+                names: names.to_vec(),
+            }),
         }],
     ))
+}
+
+fn repo_step(id: &str, title: String, request: Request) -> Step {
+    Step {
+        id: id.into(),
+        who: Who::Root,
+        title,
+        argv: vec![],
+        needs_review: false,
+        request: Some(request),
+    }
+}
+
+/// Add a repository (and, when given, trust its signing key), then refresh the databases.
+pub fn add_repo(r: &NewRepo, key: Option<&str>, existing: &[repos::Repo]) -> Result<Plan, String> {
+    repos::check_new(r, existing)?;
+    let mut steps = Vec::new();
+    if let Some(k) = key {
+        repos::check_fingerprint(k)?;
+        steps.push(repo_step(
+            "repo-key",
+            format!("Trust key {k} for {}", r.name),
+            Request::TrustKey {
+                fingerprint: k.into(),
+            },
+        ));
+    }
+    steps.push(repo_step(
+        "repo-add",
+        format!("Add the repository {}", r.name),
+        Request::AddRepo {
+            name: r.name.clone(),
+            server: r.server.clone(),
+        },
+    ));
+    steps.push(repo_step(
+        "repo-sync",
+        "Refresh the package databases".into(),
+        Request::Sync,
+    ));
+    Ok(finish("add-repo", steps))
+}
+
+pub fn remove_repo(name: &str) -> Result<Plan, String> {
+    if !repos::is_repo_name(name) {
+        return Err(format!("not a valid repository name: {name:?}"));
+    }
+    Ok(finish(
+        "remove-repo",
+        vec![
+            repo_step(
+                "repo-remove",
+                format!("Remove the repository {name}"),
+                Request::RemoveRepo { name: name.into() },
+            ),
+            repo_step(
+                "repo-sync",
+                "Refresh the package databases".into(),
+                Request::Sync,
+            ),
+        ],
+    ))
+}
+
+pub fn set_official_repo(name: &str, enabled: bool) -> Result<Plan, String> {
+    if !repos::OFFICIAL_OPTIONAL.contains(&name) {
+        return Err(format!("{name} can't be switched here"));
+    }
+    let verb = if enabled { "Turn on" } else { "Turn off" };
+    Ok(finish(
+        "set-repo",
+        vec![
+            repo_step(
+                "repo-official",
+                format!("{verb} {name}"),
+                Request::SetOfficialRepo {
+                    name: name.into(),
+                    enabled,
+                },
+            ),
+            repo_step(
+                "repo-sync",
+                "Refresh the package databases".into(),
+                Request::Sync,
+            ),
+        ],
+    ))
+}
+
+/// The packages an install plan installs, as (name, from_aur).
+pub fn installed_by(plan: &Plan) -> Vec<(String, bool)> {
+    let mut v = Vec::new();
+    for step in &plan.steps {
+        if let Some(Request::Install { names }) = &step.request {
+            v.extend(names.iter().map(|n| (n.clone(), false)));
+        } else if let Some(n) = step.id.strip_prefix("install-") {
+            v.push((n.to_string(), true));
+        }
+    }
+    v
 }
 
 /// One line of the confirmation sheet (the uQ settings-page preview document).
@@ -182,6 +297,17 @@ pub fn preview(plan: &Plan) -> Preview {
                     true,
                 )
             }));
+        } else if step.id.starts_with("repo-")
+            && step.id != "repo-install"
+            && step.id != "repo-sync"
+        {
+            let reversible = step.id != "repo-key";
+            let detail = if step.id == "repo-key" {
+                "lets packages signed with this key install without a warning"
+            } else {
+                "pacman.conf is backed up first"
+            };
+            changes.push(ch("Repositories", &step.title, detail, reversible));
         } else if let Some(n) = step.id.strip_prefix("install-") {
             changes.push(ch(
                 "Built from the AUR and installed",
@@ -192,8 +318,8 @@ pub fn preview(plan: &Plan) -> Preview {
         }
     }
     let summary = match changes.len() {
-        1 => format!("1 package: {}", plan.action),
-        n => format!("{n} packages: {}", plan.action),
+        1 => "1 change".to_string(),
+        n => format!("{n} changes"),
     };
     Preview {
         summary,
@@ -251,7 +377,7 @@ mod tests {
         assert_eq!(p.changes.len(), 2);
         assert_eq!(p.changes[1].group, "Built from the AUR and installed");
         let r = preview(&remove(&v(&["htop", "btop"])).unwrap());
-        assert_eq!(r.summary, "2 packages: remove");
+        assert_eq!(r.summary, "2 changes");
         assert!(!r.would_refuse);
     }
 }

@@ -229,15 +229,10 @@ pub fn run(plan: &Plan, o: &Opts) -> Result<(), Failure> {
                 send(&mut helper, &Request::InstallFiles { paths }, &mut out)?;
             }
             (_, Who::Root) => {
-                let req = if step.id == "remove" {
-                    Request::Remove {
-                        names: step.argv.iter().skip(4).cloned().collect(),
-                    }
-                } else {
-                    Request::Install {
-                        names: step.argv.iter().skip(5).cloned().collect(),
-                    }
-                };
+                let req = step
+                    .request
+                    .clone()
+                    .ok_or_else(|| format!("step {} has no request", step.id))?;
                 send(&mut helper, &req, &mut out)?;
             }
             _ => return Err(format!("unknown step {}", step.id).into()),
