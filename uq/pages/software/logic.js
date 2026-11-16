@@ -4,6 +4,9 @@
 // cut. The words are the ones bindaru's own window uses.
 
 var NAME = "^[a-z0-9@._+][a-z0-9@._+-]{0,254}$";
+var REPO = "^[a-z0-9][a-z0-9_-]{0,31}$";
+var SERVER = "^https://[A-Za-z0-9._~:/@%+$-]{1,300}$";
+var KEY = "^[0-9A-Fa-f]{40}$";
 var LIMIT = 300;
 var TEXT = 400;
 
@@ -16,7 +19,15 @@ var PATTERNS = {
     "install": { "package": NAME },
     "install-aur": { "hash": "^[0-9a-f]{64}$", "package": NAME },
     "remove": { "package": NAME },
-    "config-set": { "key": "^(aur_enabled|aur_update_diff|aur_show_risky)$", "value": "^(true|false)$" }
+    "config-set": { "key": "^(aur_enabled|aur_update_diff|aur_show_risky|view|sort|sort_descending|group_by|density|show_inspector|search_in|start_filter|confirm_removals|show_dependencies|scan_installs)$", "value": "^[a-z-]{1,20}$" },
+    "preview-repo-add": { "name": REPO, "server": SERVER },
+    "repo-add": { "name": REPO, "server": SERVER },
+    "preview-repo-add-key": { "fingerprint": KEY, "name": REPO, "server": SERVER },
+    "repo-add-key": { "fingerprint": KEY, "name": REPO, "server": SERVER },
+    "preview-repo-remove": { "name": REPO },
+    "repo-remove": { "name": REPO },
+    "preview-repo-official": { "name": REPO, "state": "^(on|off)$" },
+    "repo-official": { "name": REPO, "state": "^(on|off)$" }
 };
 
 function cut(text, limit) {
@@ -180,17 +191,64 @@ function streamProblem(state, result) {
 
 // ---- settings
 
+var CONFIG_WORDS = {
+    view: ["list", "grid", "compact"],
+    sort: ["name", "size", "version", "repo", "popularity"],
+    group_by: ["none", "repo", "source"],
+    density: ["comfortable", "compact"],
+    search_in: ["name", "name-description"],
+    start_filter: ["all", "installed", "repos", "aur"],
+    scan_installs: ["off", "aur", "all"]
+};
+var CONFIG_FLAGS = ["aur_enabled", "aur_update_diff", "aur_show_risky", "sort_descending", "show_inspector", "confirm_removals", "show_dependencies"];
+var CONFIG_DEFAULTS = {
+    aur_enabled: true, aur_update_diff: true, aur_show_risky: true, sort_descending: false, show_inspector: true,
+    confirm_removals: true, show_dependencies: false, view: "list", sort: "name", group_by: "none",
+    density: "comfortable", search_in: "name-description", start_filter: "all", scan_installs: "aur"
+};
+
+/// bindaru's settings as {values: {key: bool|word}, problem}; anything unknown or out of range
+/// falls back to the default. aurEnabled, aurUpdateDiff and aurShowRisky stay for older callers.
 function configView(result) {
-    const none = { aurEnabled: true, aurUpdateDiff: true, aurShowRisky: true, problem: "" };
     if (isCancelled(result))
         return null;
-    if (!result || result.error !== undefined || !result.output || typeof result.output !== "object")
-        return Object.assign({}, none, { problem: problemOf(result, "the settings") });
-    const o = result.output;
+    const o = result && result.error === undefined && result.output && typeof result.output === "object" ? result.output : null;
+    const values = Object.assign({}, CONFIG_DEFAULTS);
+    if (o) {
+        CONFIG_FLAGS.forEach(k => { if (typeof o[k] === "boolean") values[k] = o[k]; });
+        Object.keys(CONFIG_WORDS).forEach(k => { if (CONFIG_WORDS[k].indexOf(o[k]) >= 0) values[k] = o[k]; });
+    }
     return {
-        aurEnabled: o.aur_enabled !== false,
-        aurUpdateDiff: o.aur_update_diff !== false,
-        aurShowRisky: o.aur_show_risky !== false,
-        problem: ""
+        values: values,
+        aurEnabled: values.aur_enabled,
+        aurUpdateDiff: values.aur_update_diff,
+        aurShowRisky: values.aur_show_risky,
+        problem: o ? "" : problemOf(result, "the settings")
     };
+}
+
+var OFFICIAL_OPTIONAL = ["multilib", "multilib-testing", "core-testing", "extra-testing"];
+
+/// `bindaru repos list --json` as {repos: [{name, enabled, origin, switchable, removable, where}], problem}.
+function reposView(result) {
+    if (isCancelled(result))
+        return null;
+    if (!result || result.error !== undefined || !Array.isArray(result.output))
+        return { repos: [], problem: problemOf(result, "the repositories") };
+    const repos = [];
+    result.output.slice(0, LIMIT).forEach(r => {
+        if (!r || typeof r.name !== "string" || !new RegExp(REPO).test(r.name))
+            return;
+        const origin = r.origin === "added" || r.origin === "official" ? r.origin : "other";
+        const server = Array.isArray(r.servers) && typeof r.servers[0] === "string" ? cut(r.servers[0], 120) : "";
+        repos.push({
+            name: r.name,
+            enabled: r.enabled === true,
+            origin: origin,
+            switchable: origin === "official" && OFFICIAL_OPTIONAL.indexOf(r.name) >= 0,
+            removable: origin === "added",
+            where: origin === "official" ? "Part of Arch" : origin === "added" ? server : "Set up outside bindaru"
+        });
+    });
+    return { repos: repos, problem: "" };
 }

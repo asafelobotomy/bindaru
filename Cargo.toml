@@ -7,7 +7,7 @@ default-members = ["crates/bindaru-core", "crates/bindaru-cli"]
 [workspace.package]
 edition = "2024"
 rust-version = "1.90"
-version = "0.0.1"
+version = "0.1.0"
 license = "GPL-3.0-or-later"
 authors = ["asafelobotomy"]
 repository = "https://github.com/asafelobotomy/bindaru"

@@ -26,6 +26,21 @@ label = "Use the AUR"
 keywords = ["arch user repository", "community", "pkgbuild"]
 
 [[setting]]
+id = "repositories"
+label = "Repositories"
+keywords = ["repo", "repository", "multilib", "testing", "mirror", "add repository", "pacman.conf", "signing key"]
+
+[[setting]]
+id = "scan-installs"
+label = "Scan new installs with oysterAV"
+keywords = ["antivirus", "virus", "malware", "scan", "oysterav", "security"]
+
+[[setting]]
+id = "layout"
+label = "Software view"
+keywords = ["list", "grid", "compact", "sort", "group", "density", "inspector", "dependencies", "search"]
+
+[[setting]]
 id = "aur-risky"
 label = "Show orphaned or outdated AUR packages"
 keywords = ["orphan", "out of date", "flagged"]
@@ -115,4 +130,107 @@ id = "config-set"
 argv = ["/usr/bin/bindaru", "config", "set", "--json"]
 output = "json"
 timeout_ms = 10000
-args = [{ name = "key", pattern = "^(aur_enabled|aur_update_diff|aur_show_risky)$" }, { name = "value", pattern = "^(true|false)$" }]
+args = [{ name = "key", pattern = "^(aur_enabled|aur_update_diff|aur_show_risky|view|sort|sort_descending|group_by|density|show_inspector|search_in|start_filter|confirm_removals|show_dependencies|scan_installs)$" }, { name = "value", pattern = "^[a-z-]{1,20}$" }]
+
+# ---- repositories: read the list; every change is previewed, then runs through bindaru's helper
+# (polkit asks for the password). Added repositories are HTTPS only and need signed packages.
+[[command]]
+id = "repos"
+argv = ["/usr/bin/bindaru", "repos", "list", "--json"]
+output = "json"
+timeout_ms = 10000
+watch = { files = ["/etc/pacman.conf", "/etc/pacman.d/bindaru-repos.conf"] }
+
+[[command]]
+id = "preview-repo-add"
+argv = ["/usr/bin/bindaru", "repos", "add", "--dry-run", "--json"]
+output = "json"
+timeout_ms = 20000
+args = [{ name = "name", pattern = "^[a-z0-9][a-z0-9_-]{0,31}$" }, { name = "server", pattern = "^https://[A-Za-z0-9._~:/@%+$-]{1,300}$" }]
+
+[[command]]
+id = "repo-add"
+argv = ["/usr/bin/bindaru", "repos", "add", "--ndjson"]
+output = "ndjson"
+timeout_ms = 300000
+args = [{ name = "name", pattern = "^[a-z0-9][a-z0-9_-]{0,31}$" }, { name = "server", pattern = "^https://[A-Za-z0-9._~:/@%+$-]{1,300}$" }]
+confirm = "Add the repository %s?"
+preview = "preview-repo-add"
+
+# The same, trusting the repository's signing key (its 40-digit fingerprint) first.
+[[command]]
+id = "preview-repo-add-key"
+argv = ["/usr/bin/bindaru", "repos", "add", "--dry-run", "--json", "--key"]
+output = "json"
+timeout_ms = 20000
+args = [{ name = "fingerprint", pattern = "^[0-9A-Fa-f]{40}$" }, { name = "name", pattern = "^[a-z0-9][a-z0-9_-]{0,31}$" }, { name = "server", pattern = "^https://[A-Za-z0-9._~:/@%+$-]{1,300}$" }]
+
+[[command]]
+id = "repo-add-key"
+argv = ["/usr/bin/bindaru", "repos", "add", "--ndjson", "--key"]
+output = "ndjson"
+timeout_ms = 300000
+args = [{ name = "fingerprint", pattern = "^[0-9A-Fa-f]{40}$" }, { name = "name", pattern = "^[a-z0-9][a-z0-9_-]{0,31}$" }, { name = "server", pattern = "^https://[A-Za-z0-9._~:/@%+$-]{1,300}$" }]
+confirm = "Add a repository signed by key %s?"
+preview = "preview-repo-add-key"
+
+[[command]]
+id = "preview-repo-remove"
+argv = ["/usr/bin/bindaru", "repos", "remove", "--dry-run", "--json"]
+output = "json"
+timeout_ms = 20000
+args = [{ name = "name", pattern = "^[a-z0-9][a-z0-9_-]{0,31}$" }]
+
+[[command]]
+id = "repo-remove"
+argv = ["/usr/bin/bindaru", "repos", "remove", "--ndjson"]
+output = "ndjson"
+timeout_ms = 300000
+args = [{ name = "name", pattern = "^[a-z0-9][a-z0-9_-]{0,31}$" }]
+confirm = "Remove the repository %s?"
+preview = "preview-repo-remove"
+
+[[command]]
+id = "preview-repo-official"
+argv = ["/usr/bin/bindaru", "repos", "official", "--dry-run", "--json"]
+output = "json"
+timeout_ms = 20000
+args = [{ name = "name", pattern = "^[a-z0-9][a-z0-9_-]{0,31}$" }, { name = "state", pattern = "^(on|off)$" }]
+
+[[command]]
+id = "repo-official"
+argv = ["/usr/bin/bindaru", "repos", "official", "--ndjson"]
+output = "ndjson"
+timeout_ms = 300000
+args = [{ name = "name", pattern = "^[a-z0-9][a-z0-9_-]{0,31}$" }, { name = "state", pattern = "^(on|off)$" }]
+confirm = "Switch %s?"
+preview = "preview-repo-official"
+
+# ---- oysterAV: hand installed software to the scanner.
+[[command]]
+id = "preview-scan-aur"
+argv = ["/usr/bin/bindaru", "scan", "--dry-run", "--json", "--aur"]
+output = "json"
+timeout_ms = 60000
+
+[[command]]
+id = "scan-aur"
+argv = ["/usr/bin/bindaru", "scan", "--ndjson", "--aur"]
+output = "ndjson"
+timeout_ms = 600000
+confirm = "Scan the AUR and other outside packages with oysterAV?"
+preview = "preview-scan-aur"
+
+[[command]]
+id = "preview-scan-all"
+argv = ["/usr/bin/bindaru", "scan", "--dry-run", "--json", "--all"]
+output = "json"
+timeout_ms = 60000
+
+[[command]]
+id = "scan-all"
+argv = ["/usr/bin/bindaru", "scan", "--ndjson", "--all"]
+output = "ndjson"
+timeout_ms = 600000
+confirm = "Scan everything installed with oysterAV? This can take a while."
+preview = "preview-scan-all"

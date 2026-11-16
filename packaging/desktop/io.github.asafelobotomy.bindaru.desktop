@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=bindaru
+GenericName=Software
+Comment=Find, install and remove software from the Arch repositories and the AUR
+Exec=bindaru-gui
+Icon=bindaru
+Terminal=false
+Categories=System;PackageManager;Settings;
+Keywords=software;packages;pacman;aur;install;uninstall;store;
+StartupWMClass=bindaru
