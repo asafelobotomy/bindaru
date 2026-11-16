@@ -87,17 +87,18 @@ pub fn handle(
     runner: &mut dyn Runner,
     w: &mut impl Write,
 ) {
+    if let Request::Hello { .. } = req {
+        // The handshake answers with one event and no `done`, so the stream stays in step.
+        send(
+            w,
+            &Event::Hello {
+                version: protocol::VERSION.into(),
+            },
+        );
+        return;
+    }
     let result: Result<Option<i32>, String> = (|| {
         let staged = match req {
-            Request::Hello { .. } => {
-                send(
-                    w,
-                    &Event::Hello {
-                        version: protocol::VERSION.into(),
-                    },
-                );
-                return Ok(Some(0));
-            }
             Request::InstallFiles { paths } => {
                 let home = uid
                     .and_then(|u| protocol::passwd_home(passwd, u))
@@ -192,6 +193,27 @@ mod tests {
                     code: Some(0)
                 }
             ]
+        );
+    }
+
+    #[test]
+    fn hello_answers_once_without_done() {
+        let (mut f, mut out) = (Fake(vec![]), Vec::new());
+        handle(
+            &Request::Hello {
+                version: "x".into(),
+            },
+            None,
+            "",
+            Path::new("/nonexistent"),
+            &mut f,
+            &mut out,
+        );
+        assert_eq!(
+            events(&out),
+            [Event::Hello {
+                version: protocol::VERSION.into()
+            }]
         );
     }
 
