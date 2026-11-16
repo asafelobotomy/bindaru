@@ -1,9 +1,9 @@
 // bindaru's window. The layout is AppView; this wires it to the backend and the theme.
 import QtQuick
-import QtQuick.Controls as QQC2
+import org.kde.kirigami as Kirigami
 import org.bindaru.app
 
-QQC2.ApplicationWindow {
+Kirigami.ApplicationWindow {
     id: win
 
     width: 1180
@@ -24,8 +24,13 @@ QQC2.ApplicationWindow {
         value: backend.themeJson !== "" ? JSON.parse(backend.themeJson) : ({ present: false })
     }
 
-    AppView {
-        anchors.fill: parent
-        store: store
+    pageStack.globalToolBar.style: Kirigami.ApplicationHeaderStyle.None
+    pageStack.initialPage: Kirigami.Page {
+        padding: 0
+        Kirigami.ColumnView.fillWidth: true
+        AppView {
+            anchors.fill: parent
+            store: store
+        }
     }
 }

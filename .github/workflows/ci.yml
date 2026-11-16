@@ -29,22 +29,20 @@ jobs:
             qml6-module-qtquick-controls qml6-module-qttest qml6-module-qtqml-workerscript \
             qml6-module-qtquick-window qml6-module-qtquick-templates qml6-module-qtqml qml6-module-qtqml-models
       - run: QT_QPA_PLATFORM=offscreen /usr/lib/qt6/bin/qmltestrunner -import tests/uq/stub -input tests/uq/tst_page.qml
+  # The window needs Kirigami 6 and a recent Qt, so it builds on Arch, its target distribution.
   window:
     runs-on: ubuntu-latest
+    container: archlinux:latest
     steps:
-      - uses: actions/checkout@v4
-      - run: rustup toolchain install stable --profile minimal -c rustfmt,clippy
-      - name: Install Qt 6
+      - name: Install the toolchain, Qt 6 and Kirigami
         run: |
-          sudo apt-get update
-          sudo apt-get install -y qt6-base-dev qt6-declarative-dev qt6-declarative-dev-tools \
-            qml6-module-qtquick qml6-module-qtquick-layouts qml6-module-qtquick-controls \
-            qml6-module-qttest qml6-module-qtqml-workerscript qml6-module-qtquick-window \
-            qml6-module-qtquick-templates qml6-module-qtqml qml6-module-qtqml-models
+          pacman -Syu --noconfirm --needed git rust clang base-devel qt6-base qt6-declarative \
+            kirigami plasma-integration breeze-icons inter-font python
+      - uses: actions/checkout@v4
       - run: sh tests/gui/run.sh
       - run: cargo clippy -p bindaru-gui -- -D warnings
       - name: The window starts and loads every QML file
         run: |
           cargo build -p bindaru-gui
           QT_QPA_PLATFORM=offscreen timeout 5 ./target/debug/bindaru-gui 2>&1 | tee /tmp/gui.log || true
-          ! grep -E "ReferenceError|TypeError|unavailable|Unable to assign" /tmp/gui.log
+          ! grep -E "ReferenceError|TypeError|unavailable|Unable to assign|is not installed" /tmp/gui.log

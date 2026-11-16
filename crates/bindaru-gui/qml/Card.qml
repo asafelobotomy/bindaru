@@ -2,6 +2,7 @@ import QtQuick
 import org.bindaru.app
 import QtQuick.Controls as QQC2
 import QtQuick.Layouts
+import org.kde.kirigami as Kirigami
 
 // A titled group of rows on a raised surface.
 Rectangle {
@@ -22,10 +23,10 @@ Rectangle {
         anchors.fill: parent
         anchors.margins: 14
         spacing: 8
-        QQC2.Label {
+        Kirigami.Heading {
             visible: card.title !== ""
             text: card.title
-            font.bold: true
+            level: 4
             color: Theme.text
         }
         QQC2.Label {

@@ -4,6 +4,7 @@ import QtQuick
 import org.bindaru.app
 import QtQuick.Controls as QQC2
 import QtQuick.Layouts
+import org.kde.kirigami as Kirigami
 import "logic.js" as Logic
 
 Rectangle {
@@ -14,11 +15,9 @@ Rectangle {
     implicitWidth: 224
     color: Theme.bg
 
-    Rectangle {
+    Kirigami.Separator {
         anchors.right: parent.right
-        width: 1
         height: parent.height
-        color: Theme.border
     }
 
     component Entry: Rectangle {
@@ -41,11 +40,10 @@ Rectangle {
             anchors.leftMargin: 10
             anchors.rightMargin: 10
             spacing: 8
-            QQC2.Label {
-                text: entry.glyph
-                color: entry.current ? Theme.accentText : Theme.textMuted
-                Layout.preferredWidth: 18
-                horizontalAlignment: Text.AlignHCenter
+            Kirigami.Icon {
+                source: entry.glyph
+                implicitWidth: Kirigami.Units.iconSizes.small
+                implicitHeight: Kirigami.Units.iconSizes.small
             }
             QQC2.Label {
                 text: entry.label
@@ -93,7 +91,7 @@ Rectangle {
         Entry {
             objectName: "nav-all"
             label: "Installed"
-            glyph: "◉"
+            glyph: "system-software-install"
             count: side.store.installed.packages.length > 0 ? String(side.store.installed.packages.length) : ""
             current: side.store.page === "software" && side.store.filter === "all" || side.store.page === "software" && side.store.filter === "installed"
             onClicked: { side.store.page = "software"; side.store.filter = "all"; }
@@ -101,14 +99,14 @@ Rectangle {
         Entry {
             objectName: "nav-repos-filter"
             label: "From repositories"
-            glyph: "▤"
+            glyph: "package-x-generic"
             current: side.store.page === "software" && side.store.filter === "repos"
             onClicked: { side.store.page = "software"; side.store.filter = "repos"; }
         }
         Entry {
             objectName: "nav-aur-filter"
             label: "From the AUR"
-            glyph: "⚑"
+            glyph: "applications-development"
             visible: side.store.config.aur_enabled
             current: side.store.page === "software" && side.store.filter === "aur"
             onClicked: { side.store.page = "software"; side.store.filter = "aur"; }
@@ -125,7 +123,7 @@ Rectangle {
         Entry {
             objectName: "nav-repos"
             label: "Repositories"
-            glyph: "☰"
+            glyph: "preferences-system-network"
             count: side.store.repos.repos.filter(r => r.enabled).length > 0 ? String(side.store.repos.repos.filter(r => r.enabled).length) : ""
             current: side.store.page === "repos"
             onClicked: side.store.page = "repos"
@@ -133,14 +131,14 @@ Rectangle {
         Entry {
             objectName: "nav-scan"
             label: "Scan with oysterAV"
-            glyph: "⛨"
+            glyph: "security-high"
             current: side.store.page === "scan"
             onClicked: side.store.page = "scan"
         }
         Entry {
             objectName: "nav-settings"
             label: "Settings"
-            glyph: "⚙"
+            glyph: "preferences-system"
             current: side.store.page === "settings"
             onClicked: side.store.page = "settings"
         }

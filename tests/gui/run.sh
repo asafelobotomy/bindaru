@@ -21,6 +21,13 @@ cp "$here/FakeBackend.qml" "$tmp/mod/"
   done
 } > "$tmp/mod/qmldir"
 shots=${1:-}
-sed -e 's|^import QtTest|import QtTest\nimport "mod"|' -e "s|property string shotsDir: \"\"|property string shotsDir: \"$shots\"|" "$here/tst_window.qml" > "$tmp/tst_window.qml"
+# Optional second argument: a uQ tokens.json to render the shots in.
+tokens=""
+if [ -n "${2:-}" ]; then
+  tokens=$(python3 -c 'import json,sys
+v=json.load(open(sys.argv[1]))
+print(json.dumps({"present":True,"colors":v["colors"],"radius":v["ui"]["radius"],"fontUi":v["fonts"].get("ui",""),"fontMono":v["fonts"].get("mono",""),"fontSize":v["fonts"].get("size",0)}))' "$2")
+fi
+sed -e 's|^import QtTest|import QtTest\nimport "mod"|' -e "s|property string shotsDir: \"\"|property string shotsDir: \"$shots\"|" -e "s|property var uqTokens: null|property var uqTokens: ${tokens:-null}|" "$here/tst_window.qml" > "$tmp/tst_window.qml"
 [ -z "$shots" ] || mkdir -p "$shots"
-QT_QPA_PLATFORM=offscreen /usr/lib/qt6/bin/qmltestrunner -import "$tmp" -input "$tmp/tst_window.qml"
+QT_QUICK_CONTROLS_STYLE=Basic QT_QPA_PLATFORM=offscreen /usr/lib/qt6/bin/qmltestrunner -import "$tmp" -input "$tmp/tst_window.qml"

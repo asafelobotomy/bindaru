@@ -4,6 +4,7 @@ import QtQuick
 import org.bindaru.app
 import QtQuick.Controls as QQC2
 import QtQuick.Layouts
+import org.kde.kirigami as Kirigami
 import "logic.js" as Logic
 
 Item {
@@ -17,24 +18,13 @@ Item {
         return view.store.shown.length === 0;
     }
 
-    ColumnLayout {
+    Kirigami.PlaceholderMessage {
         anchors.centerIn: parent
         visible: view.empty()
-        spacing: 6
         width: Math.min(parent.width - 48, 360)
-        QQC2.Label {
-            text: view.store.installed.problem !== "" ? "Couldn't read the installed software" : view.store.query.trim() !== "" ? "Nothing matches “" + view.store.query.trim() + "”" : "Nothing here yet"
-            font.bold: true
-            color: Theme.text
-            Layout.alignment: Qt.AlignHCenter
-        }
-        QQC2.Label {
-            text: view.store.installed.problem !== "" ? view.store.installed.problem : "Search above to find software to install."
-            wrapMode: Text.Wrap
-            color: Theme.textMuted
-            horizontalAlignment: Text.AlignHCenter
-            Layout.fillWidth: true
-        }
+        icon.name: view.store.installed.problem !== "" ? "dialog-error" : "edit-find"
+        text: view.store.installed.problem !== "" ? "Couldn't read the installed software" : view.store.query.trim() !== "" ? "Nothing matches “" + view.store.query.trim() + "”" : "Nothing here yet"
+        explanation: view.store.installed.problem !== "" ? view.store.installed.problem : "Search above to find software to install."
     }
 
     // ---- list and compact
@@ -136,7 +126,7 @@ Item {
         model: view.store.shown
         clip: true
         cellWidth: Math.max(180, Math.floor(width / Math.max(1, Math.floor(width / 210))))
-        cellHeight: 132
+        cellHeight: 150
         QQC2.ScrollBar.vertical: QQC2.ScrollBar {}
         delegate: Item {
             id: cell
