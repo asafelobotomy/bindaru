@@ -16,7 +16,11 @@ Kirigami.ApplicationWindow {
     Store {
         id: store
         backend: backend
-        Component.onCompleted: store.load()
+        Component.onCompleted: {
+            store.load();
+            if (backend.startQuery !== "")
+                store.search(backend.startQuery);
+        }
     }
     Binding {
         target: Theme

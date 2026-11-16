@@ -205,6 +205,13 @@ Item {
             shot("settings");
         }
 
+        function test_the_sidebar_hands_system_upgrades_to_bindleup() {
+            const open = named("open-bindleup");
+            verify(open !== null && open.visible, "a link to bindleUP");
+            open.clicked();
+            compare(fake.bindleupOpened, 1);
+        }
+
         function test_changing_a_setting_calls_config_set() {
             store.setConfig("sort", "size");
             wait(100);

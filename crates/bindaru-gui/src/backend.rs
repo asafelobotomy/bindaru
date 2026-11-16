@@ -23,6 +23,7 @@ pub mod qobject {
         #[qobject]
         #[qml_element]
         #[qproperty(QString, theme_json)]
+        #[qproperty(QString, start_query)]
         type Backend = super::BackendRust;
 
         /// Run `bindaru <args>` (a JSON array of strings); `done` follows with its output.
@@ -31,6 +32,10 @@ pub mod qobject {
         /// Like `run`, with a `line` signal for each line of output as it arrives.
         #[qinvokable]
         fn stream(self: Pin<&mut Backend>, id: &QString, args: &QString);
+
+        /// Open bindleUP's window (`bindleup --gui`), where system upgrades are done.
+        #[qinvokable]
+        fn open_bindleup(self: Pin<&mut Backend>);
 
         #[qsignal]
         fn done(self: Pin<&mut Backend>, id: QString, code: i32, out: QString, err: QString);
@@ -47,10 +52,13 @@ use qobject::Backend;
 #[derive(Default)]
 pub struct BackendRust {
     theme_json: QString,
+    start_query: QString,
 }
 
 impl cxx_qt::Initialize for Backend {
     fn initialize(mut self: Pin<&mut Self>) {
+        self.as_mut()
+            .set_start_query(QString::from(&start_query(std::env::args().skip(1))));
         let path = theme::tokens_path();
         self.as_mut()
             .set_theme_json(QString::from(&theme::load(path.as_ref()).to_string()));
@@ -60,6 +68,18 @@ impl cxx_qt::Initialize for Backend {
                 .is_ok()
         });
     }
+}
+
+/// What the window opens with: `bindaru-gui --search <text>` or `bindaru-gui <text>` searches for it
+/// at start (for "Open in bindaru" links from other apps); no argument means no search.
+pub fn start_query(args: impl Iterator<Item = String>) -> String {
+    let rest: Vec<String> = args.collect();
+    let words = match rest.first().map(String::as_str) {
+        Some("--search") => &rest[1..],
+        Some(w) if !w.starts_with('-') => &rest[..],
+        _ => &[],
+    };
+    words.join(" ").trim().chars().take(64).collect()
 }
 
 /// The CLI: `bindaru` beside this executable, else the one on PATH.
@@ -77,6 +97,21 @@ fn parse_args(json: &str) -> Option<Vec<String>> {
 }
 
 impl Backend {
+    fn open_bindleup(self: Pin<&mut Self>) {
+        // A fixed command, so the page can't be made to start anything else. Reaped on a thread.
+        if let Ok(mut child) = Command::new("bindleup")
+            .arg("--gui")
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+        {
+            std::thread::spawn(move || {
+                let _ = child.wait();
+            });
+        }
+    }
+
     fn spawn(self: Pin<&mut Self>, id: &QString, args: &QString, streaming: bool) {
         let id = id.to_string();
         let qt = self.qt_thread();
@@ -161,5 +196,22 @@ mod tests {
         for bad in ["", "{}", "[1]", r#""search""#, r#"[["a"]]"#] {
             assert_eq!(parse_args(bad), None, "{bad}");
         }
+    }
+}
+
+#[cfg(test)]
+mod start_query_tests {
+    use super::start_query;
+    fn q(a: &[&str]) -> String {
+        start_query(a.iter().map(|s| s.to_string()))
+    }
+    #[test]
+    fn the_start_query_comes_from_search_or_a_plain_word() {
+        assert_eq!(q(&[]), "");
+        assert_eq!(q(&["--search", "htop"]), "htop");
+        assert_eq!(q(&["btop", "git"]), "btop git");
+        assert_eq!(q(&["--platform", "offscreen"]), "");
+        assert_eq!(q(&["--search"]), "");
+        assert_eq!(q(&[&"x".repeat(200)]).len(), 64);
     }
 }

@@ -153,5 +153,12 @@ Rectangle {
             Layout.fillWidth: true
             Layout.leftMargin: 10
         }
+        QQC2.Button {
+            objectName: "open-bindleup"
+            text: "Open bindleUP"
+            flat: true
+            Layout.leftMargin: 4
+            onClicked: side.store.openBindleUp()
+        }
     }
 }
