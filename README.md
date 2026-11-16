@@ -18,9 +18,9 @@ bindleUP.
 
 ## Status
 
-v0.0.1: the pure core (parsers, AUR flags, review scan and diff, planner, config) and a CLI that
+v0.0.2 (unreleased): the pure core (parsers, AUR flags, review scan and diff, planner, config) and a CLI that
 searches, shows, reviews PKGBUILDs offline and prints install/remove plans with `--dry-run`.
-Running plans (the root helper), the GUI and the uQ page come next.
+The root helper (`pkexec bindaru helper`, polkit action in `packaging/polkit/`) now runs installs and removes; AUR installs stop at the review step until you pass `--ack <hash>` from `bindaru review --aur <pkg>` (or type the package name on a terminal). The GUI and the uQ page come next.
 
 ```
 bindaru search firefox

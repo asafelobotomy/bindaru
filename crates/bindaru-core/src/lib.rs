@@ -5,4 +5,5 @@ pub mod names;
 pub mod parse;
 pub mod pkg;
 pub mod plan;
+pub mod protocol;
 pub mod review;
