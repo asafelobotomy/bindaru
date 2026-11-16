@@ -28,3 +28,9 @@ bindaru install --aur paru-bin --dry-run --json
 bindaru review PKGBUILD --old PKGBUILD.installed
 bindaru config set aur_enabled false
 ```
+
+## Settings, repositories and oysterAV (v0.0.3, unreleased)
+
+- `bindaru config show|set`: AUR switches, how the list looks (`view`, `sort`, `sort_descending`, `group_by`, `density`, `show_inspector`, `search_in`, `start_filter`), behaviour, and `scan_installs` (`off`, `aur`, `all`).
+- `bindaru repos list|add|remove|official`: switch multilib and the testing repos, add a repository (HTTPS, signatures required, optional `--key <40-digit fingerprint>`), remove one you added. pacman.conf is backed up first; run bindleUP afterwards for a full upgrade.
+- `bindaru scan <pkg...>|--aur|--all`: hands the files packages installed to oysterAV (`oyst-cli scan --ndjson`). With `scan_installs` set, new installs are scanned automatically.

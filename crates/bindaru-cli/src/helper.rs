@@ -78,6 +78,57 @@ fn stage(files: &[PathBuf], stage_dir: &Path) -> Result<Vec<PathBuf>, String> {
     Ok(out)
 }
 
+const CONF: &str = "/etc/pacman.conf";
+
+/// Apply a repository edit to the two files. Each file is replaced atomically (write a temp file
+/// beside it, then rename) after the old pacman.conf is kept as `pacman.conf.bindaru.bak`.
+pub fn edit_repos(req: &Request, conf_path: &Path, dropin_path: &Path) -> Result<(), String> {
+    use bindaru_core::repos::{self, NewRepo};
+    let conf =
+        std::fs::read_to_string(conf_path).map_err(|e| format!("{}: {e}", conf_path.display()))?;
+    let dropin = std::fs::read_to_string(dropin_path).unwrap_or_default();
+    let existing = repos::list(&conf, &dropin);
+    let mut managed = repos::parse_dropin(&dropin);
+    let mut new_conf = None;
+    match req {
+        Request::AddRepo { name, server } => {
+            let r = NewRepo {
+                name: name.clone(),
+                server: server.clone(),
+            };
+            repos::check_new(&r, &existing)?;
+            managed.push(r);
+            new_conf = repos::with_include(&conf);
+        }
+        Request::RemoveRepo { name } => {
+            let before = managed.len();
+            managed.retain(|r| &r.name != name);
+            if managed.len() == before {
+                return Err(format!("{name} isn't a repository bindaru added"));
+            }
+        }
+        Request::SetOfficialRepo { name, enabled } => {
+            new_conf = repos::set_official(&conf, name, *enabled)?
+        }
+        _ => return Err("not a repository request".into()),
+    }
+    if !matches!(req, Request::SetOfficialRepo { .. }) {
+        write_atomic(dropin_path, &repos::render_dropin(&managed))?;
+    }
+    if let Some(c) = new_conf {
+        let bak = conf_path.with_extension("conf.bindaru.bak");
+        std::fs::copy(conf_path, &bak).map_err(|e| format!("{}: {e}", bak.display()))?;
+        write_atomic(conf_path, &c)?;
+    }
+    Ok(())
+}
+
+fn write_atomic(path: &Path, text: &str) -> Result<(), String> {
+    let tmp = path.with_extension("bindaru.tmp");
+    std::fs::write(&tmp, text).map_err(|e| format!("{}: {e}", tmp.display()))?;
+    std::fs::rename(&tmp, path).map_err(|e| format!("{}: {e}", path.display()))
+}
+
 /// Handle one request. `uid` is the invoking user (pkexec sets `PKEXEC_UID`).
 pub fn handle(
     req: &Request,
@@ -98,6 +149,30 @@ pub fn handle(
         return;
     }
     let result: Result<Option<i32>, String> = (|| {
+        if let Request::TrustKey { fingerprint } = req {
+            bindaru_core::repos::check_fingerprint(fingerprint)?;
+            for flag in ["--recv-keys", "--lsign-key"] {
+                let argv: Vec<String> = ["/usr/bin/pacman-key", flag, fingerprint]
+                    .map(String::from)
+                    .to_vec();
+                match runner.run(&argv, &mut |line| send(w, &Event::Output { line }))? {
+                    Some(0) => {}
+                    code => return Ok(code),
+                }
+            }
+            return Ok(Some(0));
+        }
+        if matches!(
+            req,
+            Request::AddRepo { .. } | Request::RemoveRepo { .. } | Request::SetOfficialRepo { .. }
+        ) {
+            edit_repos(
+                req,
+                Path::new(CONF),
+                Path::new(bindaru_core::repos::DROPIN_PATH),
+            )?;
+            return Ok(Some(0));
+        }
         let staged = match req {
             Request::InstallFiles { paths } => {
                 let home = uid
@@ -194,6 +269,95 @@ mod tests {
                 }
             ]
         );
+    }
+
+    #[test]
+    fn repo_edits_keep_a_backup_and_never_write_unsigned_repos() {
+        let dir = std::env::temp_dir().join(format!("bindaru-repo-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let (conf, drop) = (dir.join("pacman.conf"), dir.join("bindaru-repos.conf"));
+        std::fs::write(
+            &conf,
+            "[options]\n\n[core]\nInclude = /m\n\n#[multilib]\n#Include = /m\n",
+        )
+        .unwrap();
+        let add = Request::AddRepo {
+            name: "mine".into(),
+            server: "https://e.org/$arch".into(),
+        };
+        edit_repos(&add, &conf, &drop).unwrap();
+        let d = std::fs::read_to_string(&drop).unwrap();
+        assert!(d.contains("SigLevel = Required DatabaseRequired") && d.contains("[mine]"));
+        assert!(
+            std::fs::read_to_string(&conf)
+                .unwrap()
+                .contains("Include = /etc/pacman.d/bindaru-repos.conf")
+        );
+        assert!(dir.join("pacman.conf.bindaru.bak").exists());
+        assert!(edit_repos(&add, &conf, &drop).is_err(), "no duplicate");
+        edit_repos(
+            &Request::SetOfficialRepo {
+                name: "multilib".into(),
+                enabled: true,
+            },
+            &conf,
+            &drop,
+        )
+        .unwrap();
+        assert!(
+            std::fs::read_to_string(&conf)
+                .unwrap()
+                .contains("\n[multilib]\n")
+        );
+        edit_repos(
+            &Request::RemoveRepo {
+                name: "mine".into(),
+            },
+            &conf,
+            &drop,
+        )
+        .unwrap();
+        assert!(!std::fs::read_to_string(&drop).unwrap().contains("[mine]"));
+        assert!(
+            edit_repos(
+                &Request::AddRepo {
+                    name: "x".into(),
+                    server: "http://e.org".into()
+                },
+                &conf,
+                &drop
+            )
+            .is_err()
+        );
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn trusting_a_key_needs_a_full_fingerprint() {
+        let (mut f, mut out) = (Fake(vec![]), Vec::new());
+        handle(
+            &Request::TrustKey {
+                fingerprint: "ABCD".into(),
+            },
+            None,
+            "",
+            Path::new("/x"),
+            &mut f,
+            &mut out,
+        );
+        assert!(f.0.is_empty());
+        handle(
+            &Request::TrustKey {
+                fingerprint: "AB12".repeat(10),
+            },
+            None,
+            "",
+            Path::new("/x"),
+            &mut f,
+            &mut out,
+        );
+        assert_eq!(f.0.len(), 2);
+        assert_eq!(f.0[1][1], "--lsign-key");
     }
 
     #[test]

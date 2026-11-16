@@ -17,6 +17,16 @@ pub enum Request {
     Remove { names: Vec<String> },
     /// `pacman -U` of package files the user built under their bindaru build cache.
     InstallFiles { paths: Vec<String> },
+    /// Add a repository to bindaru's own pacman drop-in (HTTPS, signatures required).
+    AddRepo { name: String, server: String },
+    /// Remove a repository bindaru added.
+    RemoveRepo { name: String },
+    /// Switch an official optional repository (multilib, testing) on or off.
+    SetOfficialRepo { name: String, enabled: bool },
+    /// Receive a signing key by its full fingerprint and locally sign it (`pacman-key`).
+    TrustKey { fingerprint: String },
+    /// `pacman -Sy`: refresh the package databases (after changing repositories).
+    Sync,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -101,6 +111,13 @@ pub fn argv(req: &Request, staged: &[PathBuf]) -> Result<Vec<String>, String> {
             v.extend(["/usr/bin/pacman", "-Rns", "--noconfirm", "--"].map(String::from));
             v.extend(names.iter().cloned());
         }
+        Request::TrustKey { .. }
+        | Request::AddRepo { .. }
+        | Request::RemoveRepo { .. }
+        | Request::SetOfficialRepo { .. } => {
+            return Err("this request edits files and runs no single command".into());
+        }
+        Request::Sync => v.extend(["/usr/bin/pacman", "-Sy"].map(String::from)),
         Request::InstallFiles { .. } => {
             v.extend(["/usr/bin/pacman", "-U", "--noconfirm", "--"].map(String::from));
             v.extend(staged.iter().map(|p| p.display().to_string()));

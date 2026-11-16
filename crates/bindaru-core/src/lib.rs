@@ -6,4 +6,6 @@ pub mod parse;
 pub mod pkg;
 pub mod plan;
 pub mod protocol;
+pub mod repos;
 pub mod review;
+pub mod scan;
