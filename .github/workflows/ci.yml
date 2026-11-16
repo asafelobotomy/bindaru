@@ -29,3 +29,22 @@ jobs:
             qml6-module-qtquick-controls qml6-module-qttest qml6-module-qtqml-workerscript \
             qml6-module-qtquick-window qml6-module-qtquick-templates qml6-module-qtqml qml6-module-qtqml-models
       - run: QT_QPA_PLATFORM=offscreen /usr/lib/qt6/bin/qmltestrunner -import tests/uq/stub -input tests/uq/tst_page.qml
+  window:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install stable --profile minimal -c rustfmt,clippy
+      - name: Install Qt 6
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qt6-base-dev qt6-declarative-dev qt6-declarative-dev-tools \
+            qml6-module-qtquick qml6-module-qtquick-layouts qml6-module-qtquick-controls \
+            qml6-module-qttest qml6-module-qtqml-workerscript qml6-module-qtquick-window \
+            qml6-module-qtquick-templates qml6-module-qtqml qml6-module-qtqml-models
+      - run: sh tests/gui/run.sh
+      - run: cargo clippy -p bindaru-gui -- -D warnings
+      - name: The window starts and loads every QML file
+        run: |
+          cargo build -p bindaru-gui
+          QT_QPA_PLATFORM=offscreen timeout 5 ./target/debug/bindaru-gui 2>&1 | tee /tmp/gui.log || true
+          ! grep -E "ReferenceError|TypeError|unavailable|Unable to assign" /tmp/gui.log
