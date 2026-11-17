@@ -14,6 +14,24 @@ Rectangle {
     readonly property var sortKeys: ["name", "size", "version", "repo", "popularity"]
     readonly property bool onSoftware: store.page === "software"
 
+    function title() {
+        const s = store;
+        if (s.page === "repos")
+            return "Software sources";
+        if (s.page === "scan")
+            return "Scan with oysterAV";
+        if (s.page === "settings")
+            return "Settings";
+        return s.filter === "installed" ? "Installed" : s.filter === "aur" ? "The AUR" : s.filter === "repos" || !s.config.aur_enabled ? "Arch repositories" : "Find software";
+    }
+    function placeholder() {
+        const s = store;
+        if (!s.browsing)
+            return "Filter your installed software";
+        const where = s.filter === "aur" ? "the AUR" : s.filter === "repos" || !s.config.aur_enabled ? "the Arch repositories" : "the repositories and the AUR";
+        return "Search " + where;
+    }
+
     implicitHeight: 56
     color: Theme.surface
 
@@ -30,16 +48,16 @@ Rectangle {
 
         Kirigami.Heading {
             level: 2
-            text: bar.store.page === "software" ? "Software" : bar.store.page === "repos" ? "Repositories" : bar.store.page === "scan" ? "Scan with oysterAV" : "Settings"
+            text: bar.title()
             color: Theme.text
-            Layout.preferredWidth: 180
+            Layout.preferredWidth: 200
         }
 
         Kirigami.SearchField {
             id: search
             objectName: "search"
             visible: bar.onSoftware
-            placeholderText: bar.store.config.search_in === "name" ? "Search by name" : "Search names and descriptions"
+            placeholderText: bar.placeholder()
             text: bar.store.query
             Layout.fillWidth: true
             Layout.maximumWidth: 520

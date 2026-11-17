@@ -535,7 +535,7 @@ SettingsPage {
             Choice { label: "Sort by"; key: "sort"; names: ["Name", "Size", "Version", "Source", "Popularity"]; values: ["name", "size", "version", "repo", "popularity"] }
             Toggle { label: "Sort in descending order"; key: "sort_descending" }
             Choice { label: "Group by"; key: "group_by"; names: ["Nothing", "Repository", "Source (repositories or AUR)"]; values: ["none", "repo", "source"] }
-            Choice { label: "Start on"; key: "start_filter"; names: ["Everything", "Installed", "Repositories", "The AUR"]; values: ["all", "installed", "repos", "aur"] }
+            Choice { label: "Start on"; key: "start_filter"; names: ["Installed software", "Browse the Arch repositories", "Browse the AUR"]; values: ["installed", "repos", "aur"] }
             Choice { label: "Search in"; key: "search_in"; names: ["Names only", "Names and descriptions"]; values: ["name", "name-description"] }
             Toggle { label: "Show the inspector"; key: "show_inspector" }
             Toggle { label: "Show packages that were only installed as dependencies"; key: "show_dependencies" }

@@ -60,6 +60,16 @@ Rectangle {
         }
     }
 
+    // A heading over a group of entries.
+    component Section: QQC2.Label {
+        font.pixelSize: Theme.smallSize * 1.15
+        font.bold: true
+        font.capitalization: Font.AllUppercase
+        color: Theme.textMuted
+        Layout.leftMargin: 10
+        Layout.bottomMargin: 2
+    }
+
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 12
@@ -80,67 +90,72 @@ Rectangle {
             }
         }
 
-        QQC2.Label {
-            text: "SOFTWARE"
-            font.pixelSize: Theme.smallSize * 1.15
-            font.bold: true
-            color: Theme.textMuted
+        Section {
+            text: "On this computer"
             Layout.topMargin: 4
-            Layout.leftMargin: 10
         }
         Entry {
             objectName: "nav-all"
             label: "Installed"
-            glyph: "system-software-install"
+            glyph: "computer"
             count: side.store.installed.packages.length > 0 ? String(side.store.installed.packages.length) : ""
-            current: side.store.page === "software" && side.store.filter === "all" || side.store.page === "software" && side.store.filter === "installed"
-            onClicked: { side.store.page = "software"; side.store.filter = "all"; }
+            current: side.store.page === "software" && !side.store.browsing
+            onClicked: side.store.go("software", "installed")
+        }
+
+        Section {
+            text: "Find new software"
+            Layout.topMargin: 16
+        }
+        Entry {
+            objectName: "nav-find-all"
+            label: side.store.config.aur_enabled ? "All sources" : "Arch repositories"
+            glyph: "edit-find"
+            current: side.store.page === "software" && side.store.filter === "all"
+            onClicked: side.store.go("software", "all")
         }
         Entry {
             objectName: "nav-repos-filter"
-            label: "From repositories"
+            label: "Arch repositories"
             glyph: "package-x-generic"
+            visible: side.store.config.aur_enabled
             current: side.store.page === "software" && side.store.filter === "repos"
-            onClicked: { side.store.page = "software"; side.store.filter = "repos"; }
+            onClicked: side.store.go("software", "repos")
         }
         Entry {
             objectName: "nav-aur-filter"
-            label: "From the AUR"
+            label: "The AUR"
             glyph: "applications-development"
             visible: side.store.config.aur_enabled
             current: side.store.page === "software" && side.store.filter === "aur"
-            onClicked: { side.store.page = "software"; side.store.filter = "aur"; }
+            onClicked: side.store.go("software", "aur")
         }
 
-        QQC2.Label {
-            text: "MANAGE"
-            font.pixelSize: Theme.smallSize * 1.15
-            font.bold: true
-            color: Theme.textMuted
+        Section {
+            text: "Manage"
             Layout.topMargin: 16
-            Layout.leftMargin: 10
         }
         Entry {
             objectName: "nav-repos"
-            label: "Repositories"
+            label: "Software sources"
             glyph: "preferences-system-network"
             count: side.store.repos.repos.filter(r => r.enabled).length > 0 ? String(side.store.repos.repos.filter(r => r.enabled).length) : ""
             current: side.store.page === "repos"
-            onClicked: side.store.page = "repos"
+            onClicked: side.store.go("repos", "")
         }
         Entry {
             objectName: "nav-scan"
             label: "Scan with oysterAV"
             glyph: "security-high"
             current: side.store.page === "scan"
-            onClicked: side.store.page = "scan"
+            onClicked: side.store.go("scan", "")
         }
         Entry {
             objectName: "nav-settings"
             label: "Settings"
             glyph: "preferences-system"
             current: side.store.page === "settings"
-            onClicked: side.store.page = "settings"
+            onClicked: side.store.go("settings", "")
         }
 
         Item { Layout.fillHeight: true }

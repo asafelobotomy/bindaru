@@ -12,6 +12,11 @@ fn out(prog: &str, args: &[&str]) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&o.stdout).into_owned())
 }
 
+/// The text of a gzip file (the AppStream catalogue ships as `.xml.gz`).
+pub fn unzip(path: &str) -> Result<String, String> {
+    out("/usr/bin/zcat", &["--", path])
+}
+
 pub fn search_repo(q: &str) -> Result<Vec<Package>, String> {
     Ok(parse::parse_search(&out(
         "/usr/bin/pacman",
@@ -91,7 +96,12 @@ pub fn details(name: &str) -> Result<serde_json::Value, String> {
     let repo = parse::parse_info(&out("/usr/bin/pacman", &["-Si", "--", name])?, false)
         .into_iter()
         .next();
-    if let Some(mut p) = repo.or(installed) {
+    if let Some(mut p) = repo.or(installed.clone()) {
+        if let Some(i) = installed {
+            // Only the local database knows what depends on it here.
+            p.required_by = i.required_by;
+            p.optional_for = i.optional_for;
+        }
         p.installed = out("/usr/bin/pacman", &["-Qq", "--", name])
             .map(|o| !o.trim().is_empty())
             .unwrap_or(false);
@@ -110,6 +120,13 @@ pub fn details(name: &str) -> Result<serde_json::Value, String> {
     let mut p = Package::new(&a.name, &a.version, "aur");
     p.description = a.description.clone().unwrap_or_default();
     p.depends = a.depends.clone();
+    p.opt_depends = a.opt_depends.clone();
+    p.make_depends = a
+        .make_depends
+        .iter()
+        .chain(&a.check_depends)
+        .cloned()
+        .collect();
     p.installed = out("/usr/bin/pacman", &["-Qq", "--", name])
         .map(|o| !o.trim().is_empty())
         .unwrap_or(false);

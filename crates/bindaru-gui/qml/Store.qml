@@ -13,7 +13,12 @@ QtObject {
     property var installed: ({ packages: [], problem: "" })
     property var found: null
     property string query: ""
-    property string filter: "all"
+    /// What the Software page shows: "installed" is your own software; "all", "repos" and "aur"
+    /// browse the catalogue, so they list search results only.
+    property string filter: "installed"
+    readonly property bool browsing: filter !== "installed"
+    property var icons: ({})
+    property var peeked: null
     property string selected: ""
     property var details: null
     property var review: null
@@ -26,17 +31,40 @@ QtObject {
     property var _calls: ({})
     property int _next: 1
 
+    readonly property bool searching: found !== null && query.trim() !== ""
     readonly property var shown: {
-        const searching = found !== null && query.trim() !== "";
-        const source = searching ? Logic.markInstalled(found.packages, installed.packages) : installed.packages;
         const cfg = Object.assign({}, config, { start_filter_active: filter });
-        return Logic.viewOf(source, cfg, searching ? "" : query);
+        if (!browsing)
+            return Logic.viewOf(installed.packages, cfg, query);
+        return Logic.viewOf(searching ? Logic.markInstalled(found.packages, installed.packages) : [], cfg, "");
+    }
+    readonly property var installedNames: {
+        const have = {};
+        installed.packages.forEach(p => { have[p.name] = true; });
+        return have;
     }
     readonly property var selectedPackage: {
         for (const p of shown)
             if (p.name === selected)
                 return p;
-        return null;
+        return peeked !== null && peeked.name === selected ? peeked : null;
+    }
+
+    /// The icon to try for a package (a theme icon name or a file URL); "" when there is none.
+    function iconFor(name) {
+        return Logic.iconSource(icons, name);
+    }
+
+    /// Open a page of the sidebar. On Software, `scope` is "installed", "all", "repos" or "aur";
+    /// browsing with a search already typed runs it again for the new scope.
+    function go(page, scope) {
+        store.page = page;
+        if (page !== "software")
+            return;
+        const before = store.browsing;
+        store.filter = scope;
+        if (store.browsing && !before && store.found === null && store.query.trim().length >= 2)
+            store.search(store.query);
     }
 
     function _id() {
@@ -99,9 +127,10 @@ QtObject {
             const v = Logic.configView(r);
             store.config = v.config;
             store.configProblem = v.problem;
-            store.filter = v.config.start_filter === "installed" || v.config.start_filter === "repos" || v.config.start_filter === "aur" ? v.config.start_filter : "all";
+            store.filter = v.config.start_filter === "repos" || v.config.start_filter === "aur" ? v.config.start_filter : "installed";
         });
         reloadInstalled();
+        run(["icons", "--json"], r => { store.icons = Logic.iconsView(r); });
         run(["repos", "list", "--json"], r => { store.repos = Logic.reposView(r); });
     }
 
@@ -121,7 +150,8 @@ QtObject {
     function search(text) {
         store.query = text;
         const q = text.trim();
-        if (q.length < 2) {
+        // Your own software is filtered on the spot; only browsing asks the repositories and the AUR.
+        if (q.length < 2 || !store.browsing) {
             store.found = null;
             return;
         }
@@ -134,10 +164,16 @@ QtObject {
             store.found = v;
             if (v.problem !== "")
                 say(v.problem, true);
+            // Thumbnails for what was found that isn't already known.
+            const unknown = v.packages.map(p => p.name).filter(n => icons[n] === undefined && Logic.validName(n)).slice(0, 60);
+            if (unknown.length > 0)
+                run(["icons", "--json"].concat(unknown), ir => { store.icons = Object.assign({}, store.icons, Logic.iconsView(ir)); });
         });
     }
 
     function select(name) {
+        if (store.peeked !== null && store.peeked.name !== name)
+            store.peeked = null;
         store.selected = name;
         store.note = "";
         store.details = null;
@@ -149,6 +185,28 @@ QtObject {
         run(["info", "--json", name], r => {
             if (store.selected === name && base)
                 store.details = Logic.detailsView(r, base);
+        });
+    }
+
+    /// Show a package from a dependency list, which may not be in the list on screen. Names that
+    /// aren't a package of their own (a library or "sh", provided by something else) stay put.
+    function openDependency(name) {
+        const known = store.shown.some(p => p.name === name);
+        if (known) {
+            select(name);
+            return;
+        }
+        run(["info", "--json", name], r => {
+            if (!r.output || !r.output.package) {
+                say(name + " is provided by another package, so it has no page of its own.", false);
+                return;
+            }
+            store.peeked = Logic.packageOf(r.output.package, store.installedNames[name] === true);
+            store.selected = name;
+            store.review = null;
+            store.plan = null;
+            store.note = "";
+            store.details = Logic.detailsView(r, store.peeked);
         });
     }
 

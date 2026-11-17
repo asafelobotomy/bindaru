@@ -26,7 +26,8 @@ pub struct Config {
     pub show_inspector: bool,
     /// "name" or "name-description".
     pub search_in: String,
-    /// "all", "installed", "repos" or "aur": what the main view starts on.
+    /// "installed" (your software), "repos" or "aur" (browse them): what the window starts on. "all" is
+    /// what older versions wrote for the installed list.
     pub start_filter: String,
     // ---- behaviour
     /// Ask before removing, even for one package.
@@ -51,7 +52,7 @@ impl Default for Config {
             density: "comfortable".into(),
             show_inspector: true,
             search_in: "name-description".into(),
-            start_filter: "all".into(),
+            start_filter: "installed".into(),
             confirm_removals: true,
             show_dependencies: false,
             scan_installs: "aur".into(),
