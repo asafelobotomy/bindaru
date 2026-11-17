@@ -18,7 +18,7 @@ bindleUP.
 
 ## Status
 
-v0.1.1: the `bindaru` command (search, info, installed, review, install, remove, repos, scan, config),
+v0.1.2: the `bindaru` command (search, info, installed, review, install, remove, repos, scan, config),
 the root helper (`pkexec bindaru helper`, polkit action in `packaging/polkit/`), the window
 (`bindaru-gui`: sidebar, header search, list/grid/compact view, inspector, repositories, scan and
 settings pages; Kirigami 6, coloured by uQ's theme tokens when uQ is running) and the uQ Settings page.
