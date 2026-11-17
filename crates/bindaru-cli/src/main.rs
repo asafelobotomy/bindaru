@@ -3,6 +3,7 @@
 mod cfg;
 mod exec;
 mod helper;
+mod icons_cmd;
 mod repos_cmd;
 mod scan_cmd;
 mod sys;
@@ -36,6 +37,11 @@ enum Cmd {
     Info { name: String },
     /// List installed packages.
     Installed,
+    /// Icons for packages: name -> theme icon name or cached icon file.
+    Icons {
+        /// Also try these package names as icon names.
+        names: Vec<String>,
+    },
     /// Review a PKGBUILD file offline: findings, and a diff when --old is given.
     Review {
         /// A PKGBUILD file; or use --aur.
@@ -169,6 +175,15 @@ fn run(cli: Cli) -> Result<(), exec::Failure> {
                 emit(&v)
             } else {
                 v.iter().for_each(|p| println!("{} {}", p.name, p.version))
+            }
+        }
+        Cmd::Icons { names } => {
+            bindaru_core::names::check_names(&names)?;
+            let m = icons_cmd::resolve(&names);
+            if cli.json {
+                emit(&m)
+            } else {
+                m.iter().for_each(|(k, v)| println!("{k} {v}"))
             }
         }
         Cmd::Helper => helper::main()?,

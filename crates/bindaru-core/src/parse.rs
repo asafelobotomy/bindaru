@@ -8,6 +8,12 @@ fn list(v: &str) -> Vec<String> {
     v.split_whitespace().map(String::from).collect()
 }
 
+/// One optional dependency per line, `name: reason`; pacman's trailing `[installed]` is dropped.
+fn opt_entry(v: &str) -> Option<String> {
+    let v = v.trim().trim_end_matches("[installed]").trim();
+    (!v.is_empty() && v != "None").then(|| v.to_string())
+}
+
 /// Parse blocks of `Key : value` lines separated by blank lines (`pacman -Si`/`-Qi`).
 pub fn parse_info(text: &str, installed: bool) -> Vec<Package> {
     let mut out = Vec::new();
@@ -15,6 +21,8 @@ pub fn parse_info(text: &str, installed: bool) -> Vec<Package> {
         let (mut name, mut version, mut repo) = (None, None, String::from("local"));
         let mut p_desc = String::new();
         let (mut url, mut lic, mut dep, mut dl, mut sz) = (None, vec![], vec![], None, None);
+        let (mut opt, mut req, mut optf, mut prov, mut conf) =
+            (vec![], vec![], vec![], vec![], vec![]);
         let mut last_key = String::new();
         for line in block.lines() {
             if let Some((k, v)) = line.split_once(" : ") {
@@ -28,6 +36,11 @@ pub fn parse_info(text: &str, installed: bool) -> Vec<Package> {
                     "URL" => url = (v != "None").then(|| v.to_string()),
                     "Licenses" => lic = list(v),
                     "Depends On" => dep = list(v),
+                    "Optional Deps" => opt = opt_entry(v).into_iter().collect(),
+                    "Required By" => req = list(v),
+                    "Optional For" => optf = list(v),
+                    "Provides" => prov = list(v),
+                    "Conflicts With" => conf = list(v),
                     "Download Size" => dl = Some(v.to_string()),
                     "Installed Size" => sz = Some(v.to_string()),
                     _ => {}
@@ -37,6 +50,11 @@ pub fn parse_info(text: &str, installed: bool) -> Vec<Package> {
                 match last_key.as_str() {
                     "Depends On" => dep.extend(list(line)),
                     "Licenses" => lic.extend(list(line)),
+                    "Optional Deps" => opt.extend(opt_entry(line)),
+                    "Required By" => req.extend(list(line)),
+                    "Optional For" => optf.extend(list(line)),
+                    "Provides" => prov.extend(list(line)),
+                    "Conflicts With" => conf.extend(list(line)),
                     _ => {}
                 }
             }
@@ -48,6 +66,11 @@ pub fn parse_info(text: &str, installed: bool) -> Vec<Package> {
             p.url = url;
             p.licenses = lic;
             p.depends = dep;
+            p.opt_depends = opt;
+            p.required_by = req;
+            p.optional_for = optf;
+            p.provides = prov;
+            p.conflicts = conf;
             p.download_size = dl;
             p.installed_size = sz;
             out.push(p);
@@ -93,6 +116,17 @@ mod tests {
         assert_eq!(v[0].depends, ["glibc", "ncurses", "libnl", "hwloc"]);
         assert_eq!(v[0].download_size.as_deref(), Some("180.00 KiB"));
         assert!(v[1].depends.is_empty());
+    }
+    #[test]
+    fn optional_and_reverse_deps() {
+        let t = "Repository      : extra\nName            : mpv\nVersion         : 1:0.40.0-1\nDepends On      : ffmpeg\nOptional Deps   : yt-dlp: video sites [installed]\n                  zsh-completions: shell completion\nRequired By     : celluloid  smplayer\nOptional For    : None\nProvides        : None\n";
+        let v = parse_info(t, true);
+        assert_eq!(
+            v[0].opt_depends,
+            ["yt-dlp: video sites", "zsh-completions: shell completion"]
+        );
+        assert_eq!(v[0].required_by, ["celluloid", "smplayer"]);
+        assert!(v[0].optional_for.is_empty() && v[0].provides.is_empty());
     }
     #[test]
     fn search_lines() {

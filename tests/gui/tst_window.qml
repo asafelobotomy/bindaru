@@ -52,11 +52,12 @@ Item {
         replies: ({
                 "config show --json": { code: 0, out: JSON.stringify(root.config), err: "" },
                 "config set --json": { code: 0, out: "{}", err: "" },
+                "icons --json": { code: 0, out: JSON.stringify({ firefox: "/usr/share/icons/breeze/apps/48/internet-web-browser.svg", htop: "/usr/share/icons/breeze/apps/48/utilities-system-monitor.svg", kitty: "/usr/share/icons/breeze/apps/48/utilities-terminal.svg", neovim: "/usr/share/icons/breeze/apps/48/accessories-text-editor.svg", mpv: "/home/me/.ssh/id.png", zsh: "/usr/share/../../etc/passwd.png" }), err: "" },
                 "installed --json": { code: 0, out: JSON.stringify(root.installedList), err: "" },
                 "repos list --json": { code: 0, out: JSON.stringify(root.repos), err: "" },
                 "search --json": { code: 0, out: JSON.stringify(root.found), err: "" },
                 "info --json btop-git": { code: 0, out: JSON.stringify({ package: root.found[2], aur: { maintainer: null, votes: 12, popularity: 0.4, flags: [{ id: "orphan", severity: "warn", text: "Nobody maintains this package (orphaned)." }, { id: "new", severity: "warn", text: "Submitted less than 30 days ago." }] } }), err: "" },
-                "info --json": { code: 0, out: JSON.stringify({ package: Object.assign({}, root.installedList[0], { url: "https://www.mozilla.org", licenses: ["MPL-2.0"], depends: ["gtk3", "libxt", "dbus-glib", "nss", "mozilla-common"], download_size: "70.10 MiB" }), aur: null }), err: "" },
+                "info --json": { code: 0, out: JSON.stringify({ package: Object.assign({}, root.installedList[0], { url: "https://www.mozilla.org", licenses: ["MPL-2.0"], depends: ["gtk3", "libxt", "dbus-glib", "nss>=3.100", "mozilla-common", "ffmpeg", "libpulse", "alsa-lib", "libx11", "libxcb", "libxrandr", "sh"], opt_depends: ["hunspell-en_us: Spell checking, American English", "libnotify: Notification integration", "pulseaudio: Audio support", "xdg-desktop-portal: Screensharing with Wayland"], required_by: ["browserpass-firefox", "firefox-i18n-en-us"], optional_for: ["xdg-utils"], provides: ["www-browser"], download_size: "70.10 MiB" }), aur: null }), err: "" },
                 "review --json --aur": { code: 0, out: JSON.stringify(root.review), err: "" },
                 "install --dry-run --json": { code: 0, out: JSON.stringify({ summary: "1 change", changes: [{ group: "Installed from the repositories", label: "btop", detail: "and the packages it needs", reversible: true }] }), err: "" },
                 "install --aur --ndjson": { code: 0, out: "", err: "" },
@@ -110,7 +111,7 @@ Item {
             if (root.uqTokens !== null)
                 Theme.tokens = root.uqTokens;
             store.page = "software";
-            store.filter = "all";
+            store.filter = "installed";
             store.query = "";
             store.found = null;
             store.select("");
@@ -151,14 +152,101 @@ Item {
             compare(store.shown[0].name, "zsh");
         }
 
-        function test_filters_follow_the_sidebar() {
+        function test_the_sidebar_separates_your_software_from_the_catalogue() {
+            verify(named("nav-all").current, "starts on what is installed");
+            compare(store.browsing, false);
+            // Browsing lists search results only: nothing until you search.
             named("nav-aur-filter").clicked();
             wait(50);
+            compare(store.browsing, true);
+            compare(store.shown.length, 0);
+            verify(named("empty").visible, "an invitation to search, not the installed list");
+            verify(named("search-repos") === null || !named("search-repos").visible);
+            shot("browse-aur-empty");
+            store.search("btop");
+            wait(150);
+            compare(store.shown.length, 1);
+            compare(store.shown[0].name, "btop-git");
+            shot("browse-aur-results");
+            named("nav-repos-filter").clicked();
+            wait(50);
             compare(store.shown.length, 2);
-            shot("filter-aur");
+            named("nav-find-all").clicked();
+            wait(50);
+            compare(store.shown.length, 3);
+            // Back on Installed the same text only filters your own software.
+            named("nav-all").clicked();
+            wait(50);
+            compare(store.browsing, false);
+            compare(store.shown.length, 0);
+            store.search("htop");
+            compare(store.shown.length, 1);
+            compare(store.shown[0].name, "htop");
+        }
+
+        function test_installed_search_offers_the_repositories_when_nothing_matches() {
+            store.search("nosuchthing");
+            wait(100);
+            compare(store.shown.length, 0);
+            verify(named("empty").visible);
+            shot("installed-no-match");
+            const calls = fake.calls.filter(c => c[1][0] === "search").length;
+            compare(calls, 0, "filtering installed software never asks the repositories");
+            store.go("software", "all");
+            wait(150);
+            compare(fake.calls.filter(c => c[1][0] === "search").length, 1, "browsing runs the typed search");
+        }
+
+        function test_thumbnails_use_the_icon_found_and_fall_back_to_a_letter() {
+            wait(100);
+            compare(store.iconFor("firefox"), "file:///usr/share/icons/breeze/apps/48/internet-web-browser.svg");
+            compare(store.iconFor("steam"), "", "no icon found: the letter tile stays");
+            compare(store.iconFor("mpv"), "", "a file outside the icon folders is ignored");
+            compare(store.iconFor("zsh"), "", "a path that climbs out of them is ignored");
+            shot("software-list-icons");
+        }
+
+        function test_inspector_groups_dependencies() {
+            store.select("firefox");
+            wait(200);
+            const deps = named("dependencies");
+            verify(deps !== null && deps.visible, "dependencies section");
+            compare(deps.groups.map(g => g.key), ["needs", "optional", "needed-by", "optional-for"]);
+            compare(deps.groups[0].entries.length, 12);
+            compare(deps.groups[0].entries.filter(e => e.name === "nss")[0].constraint, ">=3.100");
+            compare(deps.groups[1].entries[0].reason !== "", true, "optional ones say why");
+            compare(deps.current.key, "needs");
+            verify(named("dep-more").visible, "long lists are cut with a way to see all");
+            shot("inspector-needs");
+            named("dep-tab-optional").clicked();
+            wait(50);
+            compare(deps.current.key, "optional");
+            shot("inspector-optional");
+            named("dep-tab-needed-by").clicked();
+            wait(50);
+            compare(deps.current.entries.length, 2);
+            shot("inspector-needed-by");
+        }
+
+        function test_a_dependency_opens_in_the_inspector() {
+            store.select("firefox");
+            wait(200);
+            fake.replies["info --json ffmpeg"] = { code: 0, out: JSON.stringify({ package: pkg("ffmpeg", "2:7.1-1", "extra", "Complete solution to record, convert and stream audio and video", false, "40.00 MiB"), aur: null }), err: "" };
+            verify(named("dep-row-ffmpeg") !== null);
+            store.openDependency("ffmpeg");
+            wait(200);
+            compare(store.selected, "ffmpeg");
+            compare(store.details.pkg.name, "ffmpeg");
+            // Something provided by another package says so and keeps the current selection.
+            fake.replies["info --json sh"] = { code: 1, out: "", err: "not found" };
+            store.openDependency("sh");
+            wait(150);
+            compare(store.selected, "ffmpeg");
+            verify(store.note.indexOf("provided by another package") >= 0);
         }
 
         function test_search_shows_results_and_aur_inspector_with_review() {
+            store.go("software", "all");
             store.search("btop");
             wait(150);
             compare(store.shown.length, 3);
@@ -178,6 +266,7 @@ Item {
         }
 
         function test_repo_install_asks_with_the_plan_first() {
+            store.go("software", "all");
             store.search("btop");
             wait(150);
             store.select("btop");

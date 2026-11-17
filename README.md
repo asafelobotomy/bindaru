@@ -26,6 +26,13 @@ AUR installs stop at the review step until you pass `--ack <hash>` from `bindaru
 (or type the package name on a terminal). The window needs Qt 6 and Kirigami 6, so it builds on Arch:
 `cargo build --release --workspace`.
 
+The window's sidebar has three groups: **On this computer** (Installed; the header search filters it),
+**Find new software** (All sources, Arch repositories, The AUR; the header search asks them, and
+the list stays empty until you search) and **Manage** (Software sources, Scan with oysterAV, Settings).
+Thumbnails come from `bindaru icons` (the package's `.desktop` icon, else AppStream's cached icon,
+else an icon named like the package); the inspector lists dependencies by kind: needs, optional,
+to build (AUR), needed by, optional for.
+
 ```
 bindaru search firefox
 bindaru install --aur paru-bin --dry-run --json

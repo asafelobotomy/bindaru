@@ -18,13 +18,40 @@ Item {
         return view.store.shown.length === 0;
     }
 
+    // What an empty list means depends on where you are: nothing installed matching your filter, or
+    // a catalogue you haven't searched yet.
+    readonly property string typed: store.query.trim()
+    readonly property string where: store.filter === "aur" ? "the AUR" : store.filter === "repos" || !store.config.aur_enabled ? "the Arch repositories" : "the Arch repositories and the AUR"
+
     Kirigami.PlaceholderMessage {
+        id: placeholder
+        objectName: "empty"
         anchors.centerIn: parent
         visible: view.empty()
-        width: Math.min(parent.width - 48, 360)
-        icon.name: view.store.installed.problem !== "" ? "dialog-error" : "edit-find"
-        text: view.store.installed.problem !== "" ? "Couldn't read the installed software" : view.store.query.trim() !== "" ? "Nothing matches “" + view.store.query.trim() + "”" : "Nothing here yet"
-        explanation: view.store.installed.problem !== "" ? view.store.installed.problem : "Search above to find software to install."
+        width: Math.min(parent.width - 48, 380)
+        icon.name: view.store.installed.problem !== "" && !view.store.browsing ? "dialog-error" : view.store.browsing ? "edit-find" : "computer"
+        text: {
+            if (!view.store.browsing)
+                return view.store.installed.problem !== "" ? "Couldn't read the installed software" : view.typed !== "" ? "No installed software matches “" + view.typed + "”" : "Nothing is installed yet";
+            if (view.typed.length < 2)
+                return "Find software to install";
+            return view.store.searching ? "Nothing matches “" + view.typed + "” in " + view.where : "Searching " + view.where + "…";
+        }
+        explanation: {
+            if (!view.store.browsing)
+                return view.store.installed.problem !== "" ? view.store.installed.problem : view.typed !== "" ? "This list only has what is on this computer." : "";
+            return view.typed.length < 2 ? "Type in the search box to look in " + view.where + "." : "";
+        }
+        helpfulAction: view.offerSearch ? searchRepos : null
+    }
+
+    readonly property bool offerSearch: !store.browsing && typed !== "" && store.installed.problem === ""
+    Kirigami.Action {
+        id: searchRepos
+        objectName: "search-repos"
+        icon.name: "edit-find"
+        text: "Search the repositories for “" + view.typed + "”"
+        onTriggered: view.store.go("software", "all")
     }
 
     // ---- list and compact
@@ -68,6 +95,7 @@ Item {
                 spacing: 12
                 Tile {
                     name: row.modelData.name
+                    source: view.store.iconFor(row.modelData.name)
                     size: view.mode === "compact" ? 22 : 36
                 }
                 ColumnLayout {
@@ -110,7 +138,7 @@ Item {
                 Chip {
                     text: "Installed"
                     tone: "ok"
-                    visible: row.modelData.installed && view.store.query.trim() !== ""
+                    visible: row.modelData.installed && view.store.browsing
                 }
             }
         }
@@ -156,6 +184,7 @@ Item {
                         spacing: 10
                         Tile {
                             name: cell.modelData.name
+                            source: view.store.iconFor(cell.modelData.name)
                             size: 40
                         }
                         ColumnLayout {
@@ -196,7 +225,7 @@ Item {
                         Chip {
                             text: "Installed"
                             tone: "ok"
-                            visible: cell.modelData.installed && view.store.query.trim() !== ""
+                            visible: cell.modelData.installed && view.store.browsing
                         }
                     }
                 }

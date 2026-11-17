@@ -24,6 +24,12 @@ pub struct AurInfo {
     pub last_modified: i64,
     #[serde(default)]
     pub depends: Vec<String>,
+    #[serde(default)]
+    pub make_depends: Vec<String>,
+    #[serde(default)]
+    pub check_depends: Vec<String>,
+    #[serde(default)]
+    pub opt_depends: Vec<String>,
 }
 
 #[derive(Deserialize)]

@@ -61,6 +61,15 @@ function packagesView(result) {
     return { packages: packages, problem: "" };
 }
 
+/// One package as the list holds it, from a single `info` package object.
+function packageOf(p, installed) {
+    return {
+        name: cut(p.name, 100), version: cut(p.version, 60), repo: typeof p.repo === "string" ? cut(p.repo, 40) : "",
+        aur: p.source === "aur", description: typeof p.description === "string" ? cut(p.description, LIMIT) : "",
+        installed: installed === true || p.installed === true, size: parseSize(p.installed_size), votes: 0, popularity: 0
+    };
+}
+
 function sourceOf(p) {
     return p.aur ? "AUR" : (p.repo === "local" || p.repo === "" ? "Installed" : p.repo);
 }
@@ -171,6 +180,57 @@ var REPO_HELP = {
     other: "Set up by hand in pacman.conf."
 };
 
+/// A capped list of cut strings; anything that isn't a list is empty.
+function strings(list, limit) {
+    return Array.isArray(list) ? list.slice(0, 80).filter(x => typeof x === "string").map(x => cut(x, limit)) : [];
+}
+
+/// One dependency as pacman writes it: `name`, `name>=1.2`, or (optional) `name: why`.
+/// Returns {name, constraint, reason}.
+function depEntry(text) {
+    const t = String(text);
+    const colon = t.indexOf(": ");
+    const head = colon >= 0 ? t.slice(0, colon) : t;
+    const m = /^([^<>=\s]+)\s*((?:[<>]=?|=).*)?$/.exec(head.trim());
+    return { name: m ? m[1] : head.trim(), constraint: m && m[2] ? m[2] : "", reason: colon >= 0 ? t.slice(colon + 2).trim() : "" };
+}
+
+/// The dependency lists of a package, ready to show: {key, title, hint, entries}, empty ones left out.
+/// `have` maps names that are installed to true.
+function depGroups(pkg, have) {
+    const mark = e => Object.assign(e, { installed: have[e.name] === true });
+    const groups = [
+        { key: "needs", title: "Needs", hint: "Installed together with it", items: pkg.depends || [] },
+        { key: "optional", title: "Optional", hint: "Add features; not installed unless you pick them", items: pkg.optDepends || [] },
+        { key: "build", title: "To build", hint: "Only needed while building from the AUR", items: pkg.makeDepends || [] },
+        { key: "needed-by", title: "Needed by", hint: "Installed software that depends on it", items: pkg.requiredBy || [] },
+        { key: "optional-for", title: "Optional for", hint: "Installed software that can use it", items: pkg.optionalFor || [] }
+    ];
+    return groups.filter(g => g.items.length > 0).map(g => ({
+        key: g.key, title: g.title, hint: g.hint,
+        entries: g.items.map(depEntry).map(mark).sort((a, b) => (a.installed === b.installed ? 0 : a.installed ? 1 : -1) || a.name.localeCompare(b.name))
+    }));
+}
+
+/// The icon file `bindaru icons` found for a package, as a URL; "" when there is none. Only files
+/// in the system's icon folders are used.
+function iconSource(icons, name) {
+    const found = icons && typeof icons[name] === "string" ? icons[name] : "";
+    const ok = /^\/(usr\/share|usr\/local\/share|var\/lib)\/[^\0]*\.(png|svg)$/.test(found) && found.indexOf("..") < 0;
+    return ok ? "file://" + found : "";
+}
+
+/// An `icons --json` answer as a name -> string map; anything else is empty.
+function iconsView(result) {
+    const out = {};
+    if (!result || result.error !== undefined || !result.output || typeof result.output !== "object" || Array.isArray(result.output))
+        return out;
+    for (const k of Object.keys(result.output).slice(0, 20000))
+        if (typeof result.output[k] === "string")
+            out[k] = result.output[k];
+    return out;
+}
+
 /// `info --json` for the inspector.
 function detailsView(result, fallback) {
     if (!result || result.error !== undefined || !result.output || !result.output.package)
@@ -188,7 +248,13 @@ function detailsView(result, fallback) {
         pkg: Object.assign({}, fallback, {
             url: typeof p.url === "string" ? cut(p.url, 200) : "",
             licenses: Array.isArray(p.licenses) ? p.licenses.slice(0, 8).map(l => cut(l, 60)) : [],
-            depends: Array.isArray(p.depends) ? p.depends.slice(0, 60).map(d => cut(d, 80)) : [],
+            depends: strings(p.depends, 80),
+            optDepends: strings(p.opt_depends, 160),
+            makeDepends: strings(p.make_depends, 80),
+            requiredBy: strings(p.required_by, 80),
+            optionalFor: strings(p.optional_for, 80),
+            provides: strings(p.provides, 80),
+            conflicts: strings(p.conflicts, 80),
             downloadSize: cut(p.download_size || "", 30),
             installedSize: cut(p.installed_size || "", 30),
             description: typeof p.description === "string" && p.description !== "" ? cut(p.description, 600) : fallback.description
