@@ -11,6 +11,9 @@ depends=('pacman' 'polkit' 'git' 'base-devel' 'curl' 'qt6-declarative' 'kirigami
 makedepends=('cargo' 'clang')
 optdepends=('uq: the Software page in uQ Settings')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+# Keep !lto: makepkg's LTO flags make the cxx-qt C++ objects unreadable to the linker
+# (undefined reference to cxx_qt_init_crate_*), as in uq's PKGBUILD.
+options=(!lto)
 sha256sums=('SKIP')
 
 build() {
