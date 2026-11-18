@@ -16,7 +16,7 @@ jobs:
     container: archlinux:latest
     steps:
       - run: pacman -Syu --noconfirm --needed base-devel git rustup github-cli curl clang qt6-declarative kirigami
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Check the version
         run: |
           want=${GITHUB_REF_NAME#v}
