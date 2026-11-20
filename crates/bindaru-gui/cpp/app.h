@@ -6,3 +6,7 @@
 void bindaru_describe_application(rust::Str version);
 // Whether QML created a window.
 bool bindaru_has_window();
+// One window per session: true when another bindaru window is already open in this session (it
+// has been asked to come forward, so this start should exit); false when this start now owns the
+// session's window. Call after the QGuiApplication exists.
+bool bindaru_forward_to_running();

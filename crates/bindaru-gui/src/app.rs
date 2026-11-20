@@ -7,5 +7,6 @@ pub mod ffi {
 
         fn bindaru_describe_application(version: &str);
         fn bindaru_has_window() -> bool;
+        fn bindaru_forward_to_running() -> bool;
     }
 }

@@ -14,6 +14,11 @@ fn main() {
     QQuickStyle::set_style(&QString::from("Basic"));
     let mut app = QGuiApplication::new();
     app::ffi::bindaru_describe_application(env!("CARGO_PKG_VERSION"));
+    // A second start brings the open window forward instead of opening another (two windows could
+    // start two pacman transactions at once).
+    if app::ffi::bindaru_forward_to_running() {
+        return;
+    }
     // Qt 6.4 doesn't search qrc:/qt/qml on its own (6.5 does); the app's module lives there.
     // SAFETY: no other thread exists yet.
     unsafe { std::env::set_var("QML_IMPORT_PATH", ":/qt/qml") };
