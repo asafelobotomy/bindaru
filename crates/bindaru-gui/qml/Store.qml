@@ -27,6 +27,8 @@ QtObject {
     property bool busy: false
     property string note: ""
     property bool noteFailed: false
+    /// The last failure is fixed by a full system upgrade, which is bindleUP's job.
+    property bool noteNeedsUpgrade: false
     property var repos: ({ repos: [], problem: "" })
     property var _calls: ({})
     property int _next: 1
@@ -117,9 +119,10 @@ QtObject {
         }
     }
 
-    function say(text, failed) {
+    function say(text, failed, needsUpgrade) {
         store.note = text;
         store.noteFailed = failed === true;
+        store.noteNeedsUpgrade = failed === true && needsUpgrade === true;
     }
 
     function load() {
@@ -249,10 +252,11 @@ QtObject {
         store.progress = Logic.startProgress();
         store.note = "";
         stream(argv, ev => { store.progress = Logic.reduce(store.progress, ev); }, r => {
+            const upgrade = store.progress !== null && store.progress.needsUpgrade === true;
             store.busy = false;
             store.progress = null;
             if (r.error !== undefined)
-                say(r.error, true);
+                say(Logic.failureText(r.error), true, upgrade);
             else
                 say("Done: " + subject, false);
             reloadInstalled();

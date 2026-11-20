@@ -260,6 +260,13 @@ Rectangle {
                     color: ins.store.progress === null && ins.store.noteFailed ? Theme.error : Theme.text
                     Layout.fillWidth: true
                 }
+                QQC2.Button {
+                    objectName: "failure-open-bindleup"
+                    visible: ins.store.progress === null && ins.store.noteNeedsUpgrade
+                    text: "Open bindleUP"
+                    icon.name: "system-software-update"
+                    onClicked: ins.store.openBindleUp()
+                }
             }
 
             // ---- AUR trust signals

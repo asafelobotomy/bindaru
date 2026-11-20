@@ -18,12 +18,15 @@ bindleUP.
 
 ## Status
 
-v0.1.3: the `bindaru` command (search, info, installed, review, install, remove, repos, scan, config),
+v0.1.4: the `bindaru` command (search, info, installed, review, install, remove, repos, scan, config),
 the root helper (`pkexec bindaru helper`, polkit action in `packaging/polkit/`), the window
 (`bindaru-gui`: sidebar, header search, list/grid/compact view, inspector, repositories, scan and
 settings pages; Kirigami 6, coloured by uQ's theme tokens when uQ is running) and the uQ Settings page.
 AUR installs stop at the review step until you pass `--ack <hash>` from `bindaru review --aur <pkg>`
-(or type the package name on a terminal). The window needs Qt 6 and Kirigami 6, so it builds on Arch:
+(or type the package name on a terminal). When pacman fails, bindaru says why in plain words instead
+of pacman's "Errors occurred, no packages were upgraded." (with `--ndjson`, a `failed` event carries
+the reason); package lists older than the mirrors mean a full upgrade, so the window offers bindleUP.
+The window needs Qt 6 and Kirigami 6, so it builds on Arch:
 `cargo build --release --workspace`.
 
 The window's sidebar has three groups: **On this computer** (Installed; the header search filters it),
