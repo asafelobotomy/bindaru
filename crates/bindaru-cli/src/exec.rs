@@ -1,5 +1,6 @@
 //! Runs a plan: user steps here, root steps through the helper session. AUR installs stop at
 //! the review step unless `ack` is the hash of exactly the recipe that was reviewed.
+use bindaru_core::failure;
 use bindaru_core::plan::{Plan, Step, Who};
 use bindaru_core::protocol::{BUILD_CACHE, Event, Request, VERSION};
 use bindaru_core::review;
@@ -28,7 +29,9 @@ impl From<String> for Failure {
 
 struct Helper {
     child: Child,
-    stdin: ChildStdin,
+    /// `None` once closed. The helper runs as root, so we can't signal it: closing its stdin
+    /// is what ends it, and must happen before we wait for it.
+    stdin: Option<ChildStdin>,
     out: BufReader<std::process::ChildStdout>,
 }
 
@@ -44,7 +47,11 @@ impl Helper {
             .map_err(|e| format!("pkexec: {e}"))?;
         let stdin = child.stdin.take().expect("piped");
         let out = BufReader::new(child.stdout.take().expect("piped"));
-        let mut h = Helper { child, stdin, out };
+        let mut h = Helper {
+            child,
+            stdin: Some(stdin),
+            out,
+        };
         h.request(
             &Request::Hello {
                 version: VERSION.into(),
@@ -55,12 +62,9 @@ impl Helper {
     }
 
     fn request(&mut self, req: &Request, on_out: &mut dyn FnMut(&str)) -> Result<(), String> {
-        writeln!(
-            self.stdin,
-            "{}",
-            serde_json::to_string(req).expect("serializes")
-        )
-        .map_err(|e| e.to_string())?;
+        let stdin = self.stdin.as_mut().ok_or("the helper is closed")?;
+        writeln!(stdin, "{}", serde_json::to_string(req).expect("serializes"))
+            .map_err(|e| e.to_string())?;
         let mut line = String::new();
         loop {
             line.clear();
@@ -74,7 +78,12 @@ impl Helper {
                 Event::Hello { .. } => return Ok(()),
                 Event::Output { line } => on_out(&line),
                 Event::Done { ok: true, .. } => return Ok(()),
-                Event::Done { code, .. } => return Err(format!("pacman exited with {code:?}")),
+                Event::Done { code, .. } => {
+                    return Err(match code {
+                        Some(c) => format!("pacman exited with code {c}"),
+                        None => "pacman was stopped by a signal".into(),
+                    });
+                }
                 Event::Error { message } => return Err(message),
             }
         }
@@ -83,7 +92,9 @@ impl Helper {
 
 impl Drop for Helper {
     fn drop(&mut self) {
-        let _ = self.child.kill();
+        // EOF on stdin ends the helper's request loop. Killing it would fail (it is root's),
+        // and waiting with stdin still open would wait forever.
+        drop(self.stdin.take());
         let _ = self.child.wait();
     }
 }
@@ -226,14 +237,14 @@ pub fn run(plan: &Plan, o: &Opts) -> Result<(), Failure> {
                     })
                     .map(|p| p.display().to_string())
                     .collect();
-                send(&mut helper, &Request::InstallFiles { paths }, &mut out)?;
+                send(&mut helper, &Request::InstallFiles { paths }, o, &mut out)?;
             }
             (_, Who::Root) => {
                 let req = step
                     .request
                     .clone()
                     .ok_or_else(|| format!("step {} has no request", step.id))?;
-                send(&mut helper, &req, &mut out)?;
+                send(&mut helper, &req, o, &mut out)?;
             }
             _ => return Err(format!("unknown step {}", step.id).into()),
         }
@@ -242,9 +253,32 @@ pub fn run(plan: &Plan, o: &Opts) -> Result<(), Failure> {
     Ok(())
 }
 
-fn send(h: &mut Option<Helper>, req: &Request, out: &mut dyn FnMut(&str)) -> Result<(), String> {
+/// Send one request to the helper. When pacman fails, its output is turned into a plain reason
+/// (pacman's own last line, "Errors occurred, no packages were upgraded.", says nothing).
+fn send(
+    h: &mut Option<Helper>,
+    req: &Request,
+    o: &Opts,
+    out: &mut dyn FnMut(&str),
+) -> Result<(), String> {
     if h.is_none() {
         *h = Some(Helper::start()?);
     }
-    h.as_mut().expect("started").request(req, out)
+    let mut lines: Vec<String> = Vec::new();
+    let result = h.as_mut().expect("started").request(req, &mut |l| {
+        lines.push(l.to_string());
+        out(l)
+    });
+    result.map_err(|e| match failure::explain(&lines) {
+        Some(x) => {
+            if o.ndjson {
+                println!(
+                    "{}",
+                    serde_json::json!({"event": "failed", "message": x.message, "needs_upgrade": x.needs_upgrade})
+                );
+            }
+            x.message
+        }
+        None => e,
+    })
 }

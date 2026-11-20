@@ -307,6 +307,9 @@ function reduce(state, ev) {
         } else if (ev.state === "done") {
             next.steps = next.steps.map(s => s.id === id ? { id: id, state: "done" } : s);
         }
+    } else if (ev.event === "failed") {
+        // bindaru's plain reason for a pacman failure; a stale system needs bindleUP.
+        next.needsUpgrade = ev.needs_upgrade === true;
     } else if (ev.event === "scan") {
         next.line = "oysterAV: batch " + (ev.batch | 0) + " of " + (ev.of | 0);
     }
@@ -314,7 +317,7 @@ function reduce(state, ev) {
 }
 
 function startProgress() {
-    return { line: "", steps: [] };
+    return { line: "", steps: [], needsUpgrade: false };
 }
 
 function progressLine(s) {
@@ -329,4 +332,20 @@ function configArg(value) {
 var NAME = /^[a-z0-9@._+][a-z0-9@._+-]{0,254}$/;
 function validName(n) {
     return NAME.test(String(n));
+}
+
+/// The reason from a failed run's stderr: bindaru's own `bindaru: ...` line (stderr can also
+/// hold build output), without the prefix; otherwise the last line.
+function failureText(err) {
+    const lines = String(err || "").split("\n").map(l => l.trim()).filter(l => l !== "");
+    if (lines.length === 0)
+        return "bindaru failed";
+    let pick = lines[lines.length - 1];
+    for (let i = lines.length - 1; i >= 0; i--) {
+        if (lines[i].indexOf("bindaru: ") === 0) {
+            pick = lines[i].slice("bindaru: ".length);
+            break;
+        }
+    }
+    return cut(pick, LIMIT);
 }

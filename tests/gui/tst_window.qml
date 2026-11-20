@@ -61,9 +61,15 @@ Item {
                 "review --json --aur": { code: 0, out: JSON.stringify(root.review), err: "" },
                 "install --dry-run --json": { code: 0, out: JSON.stringify({ summary: "1 change", changes: [{ group: "Installed from the repositories", label: "btop", detail: "and the packages it needs", reversible: true }] }), err: "" },
                 "install --aur --ndjson": { code: 0, out: "", err: "" },
+                "install --ndjson": { code: 1, out: "", err: "bindaru: The package lists are out of date: btop 1.4.0-1 is no longer on the mirrors. Upgrade the system in bindleUP, then try again.\n" },
                 "repos add": { code: 0, out: "", err: "" }
             })
         events: ({
+                "install --ndjson": [
+                    { event: "step", id: "install-repo", state: "start" },
+                    { event: "step", id: "install-repo", state: "output", detail: "Errors occurred, no packages were upgraded." },
+                    { event: "failed", message: "The package lists are out of date", needs_upgrade: true }
+                ],
                 "install --aur": [
                     { event: "step", id: "fetch-btop-git", state: "start" },
                     { event: "step", id: "fetch-btop-git", state: "done" },
@@ -281,6 +287,29 @@ Item {
             compare(fake.calls.filter(c => c[0] === "stream").length, 1);
         }
 
+        function test_a_stale_system_explains_itself_and_offers_bindleup() {
+            store.go("software", "all");
+            store.search("btop");
+            wait(150);
+            store.select("btop");
+            wait(100);
+            named("act-install").clicked();
+            wait(150);
+            named("confirm-plan").clicked();
+            wait(200);
+            verify(store.noteFailed);
+            compare(store.note, "The package lists are out of date: btop 1.4.0-1 is no longer on the mirrors. Upgrade the system in bindleUP, then try again.");
+            const open = named("failure-open-bindleup");
+            verify(open !== null && open.visible, "the failure offers bindleUP");
+            shot("install-failed-stale");
+            const before = fake.bindleupOpened;
+            open.clicked();
+            compare(fake.bindleupOpened, before + 1);
+            store.say("", false);
+            wait(30);
+            verify(!open.visible);
+        }
+
         function test_pages() {
             store.page = "repos";
             wait(60);
@@ -297,8 +326,9 @@ Item {
         function test_the_sidebar_hands_system_upgrades_to_bindleup() {
             const open = named("open-bindleup");
             verify(open !== null && open.visible, "a link to bindleUP");
+            const before = fake.bindleupOpened;
             open.clicked();
-            compare(fake.bindleupOpened, 1);
+            compare(fake.bindleupOpened, before + 1);
         }
 
         function test_changing_a_setting_calls_config_set() {
