@@ -10,6 +10,8 @@ install -Dm755 "$here/target/release/bindaru" "$d/usr/bin/bindaru"
 install -Dm755 "$here/target/release/bindaru-gui" "$d/usr/bin/bindaru-gui"
 install -Dm644 "$here/packaging/desktop/io.github.asafelobotomy.bindaru.desktop" \
     "$d/usr/share/applications/io.github.asafelobotomy.bindaru.desktop"
+install -Dm644 "$here/packaging/desktop/io.github.asafelobotomy.bindaru.metainfo.xml" \
+    "$d/usr/share/metainfo/io.github.asafelobotomy.bindaru.metainfo.xml"
 install -Dm644 "$here/packaging/desktop/bindaru.svg" "$d/usr/share/icons/hicolor/scalable/apps/bindaru.svg"
 install -Dm644 "$here/packaging/polkit/io.github.asafelobotomy.bindaru.policy" \
     "$d/usr/share/polkit-1/actions/io.github.asafelobotomy.bindaru.policy"

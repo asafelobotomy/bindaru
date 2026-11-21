@@ -8,6 +8,9 @@ use cxx_qt_lib::{QGuiApplication, QQmlApplicationEngine, QQuickStyle, QString, Q
 mod app;
 mod backend;
 mod theme;
+#[allow(dead_code)] // vendored whole; this app uses part of it
+#[rustfmt::skip]
+mod uq_theme;
 
 fn main() {
     // The "Basic" Qt Quick Controls style draws from the palette, which Theme overrides per item.
