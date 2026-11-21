@@ -61,7 +61,7 @@ impl cxx_qt::Initialize for Backend {
             .set_start_query(QString::from(&start_query(std::env::args().skip(1))));
         let path = theme::tokens_path();
         self.as_mut()
-            .set_theme_json(QString::from(&theme::load(path.as_ref()).to_string()));
+            .set_theme_json(QString::from(&theme::load(path.as_deref()).to_string()));
         let qt = self.qt_thread();
         theme::watch(path, move |tokens| {
             qt.queue(move |b| b.set_theme_json(QString::from(&tokens)))

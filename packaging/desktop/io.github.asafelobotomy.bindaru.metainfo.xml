@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- AppStream metadata: what software centres (GNOME Software, Discover, bindaru) show for the app. -->
+<component type="desktop-application">
+  <id>io.github.asafelobotomy.bindaru</id>
+  <name>bindaru</name>
+  <summary>Find, install and remove software from the Arch repositories and the AUR</summary>
+  <description>
+    <p>bindaru is a software store for Arch-based systems: search the official repositories and the AUR, read what a package is, and install or remove it in a click.</p>
+    <p>It follows the uQ theme and shows clear reasons when pacman fails.</p>
+  </description>
+  <launchable type="desktop-id">io.github.asafelobotomy.bindaru.desktop</launchable>
+  <icon type="stock">bindaru</icon>
+  <url type="homepage">https://github.com/asafelobotomy/bindaru</url>
+  <url type="bugtracker">https://github.com/asafelobotomy/bindaru/issues</url>
+  <developer id="io.github.asafelobotomy">
+    <name>asafelobotomy</name>
+  </developer>
+  <categories>
+    <category>Settings</category>
+    <category>PackageManager</category>
+  </categories>
+  <keywords>
+    <keyword>software</keyword>
+    <keyword>packages</keyword>
+    <keyword>pacman</keyword>
+    <keyword>aur</keyword>
+    <keyword>store</keyword>
+  </keywords>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.1.5" date="2026-11-20">
+      <description>
+        <p>One window per session: a second start brings the open window forward.</p>
+      </description>
+    </release>
+    <release version="0.1.4" date="2026-11-20">
+      <description>
+        <p>Says why pacman failed, and no longer hangs after steps that need root.</p>
+      </description>
+    </release>
+    <release version="0.1.3" date="2026-11-20">
+      <description>
+        <p>Dependency updates.</p>
+      </description>
+    </release>
+  </releases>
+</component>
