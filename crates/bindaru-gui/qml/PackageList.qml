@@ -83,6 +83,7 @@ Item {
             width: list.width
             height: view.mode === "compact" ? 34 : view.rowHeight
             color: current ? Qt.alpha(Theme.accent, 0.22) : rowHover.hovered ? Theme.overlay : "transparent"
+            Behavior on color { ColorAnimation { duration: Theme.motionFast } }
             radius: Theme.radius - 2
 
             HoverHandler { id: rowHover }
@@ -170,6 +171,7 @@ Item {
                 anchors.margins: 5
                 radius: Theme.radius
                 color: cell.current ? Qt.alpha(Theme.accent, 0.22) : Theme.surface
+                Behavior on color { ColorAnimation { duration: Theme.motionFast } }
                 border.color: cell.current ? Theme.accent : Theme.border
                 border.width: 1
 

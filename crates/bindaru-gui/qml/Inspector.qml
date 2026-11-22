@@ -394,6 +394,7 @@ Rectangle {
                             implicitHeight: pillText.implicitHeight + 10
                             radius: height / 2
                             color: on ? Theme.accent : pillHover.hovered ? Theme.border : Theme.overlay
+                            Behavior on color { ColorAnimation { duration: Theme.motionFast } }
                             signal clicked
                             onClicked: { deps.tab = modelData.key; deps.all = false; }
                             HoverHandler { id: pillHover }
@@ -425,6 +426,7 @@ Rectangle {
                         implicitHeight: depRow.implicitHeight + 8
                         radius: Theme.radius - 2
                         color: depHover.hovered ? Theme.overlay : "transparent"
+                        Behavior on color { ColorAnimation { duration: Theme.motionFast } }
                         HoverHandler { id: depHover }
                         TapHandler { onTapped: ins.store.openDependency(dep.modelData.name) }
                         RowLayout {

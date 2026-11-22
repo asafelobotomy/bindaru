@@ -32,6 +32,7 @@ Rectangle {
         implicitHeight: 36
         radius: Theme.radius - 2
         color: current ? Theme.accent : hover.hovered ? Theme.overlay : "transparent"
+        Behavior on color { ColorAnimation { duration: Theme.motionFast } }
 
         HoverHandler { id: hover }
         TapHandler { onTapped: entry.clicked() }
