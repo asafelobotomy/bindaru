@@ -9,5 +9,8 @@ description = "bindaru: pure package model, parsers, AUR review gate and planner
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# uQ's crash records (the vendored uq_diag.rs, uQ's native/uq-diag).
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "fmt", "std"] }
 toml = "1.2"
 similar = "3"

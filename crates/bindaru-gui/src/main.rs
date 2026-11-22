@@ -13,6 +13,7 @@ mod theme;
 mod uq_theme;
 
 fn main() {
+    bindaru_core::uq_diag::install_panic_hook("bindaru-gui");
     // The "Basic" Qt Quick Controls style draws from the palette, which Theme overrides per item.
     QQuickStyle::set_style(&QString::from("Basic"));
     let mut app = QGuiApplication::new();
@@ -30,7 +31,9 @@ fn main() {
         engine.load(&QUrl::from("qrc:/qt/qml/org/bindaru/app/qml/Main.qml"));
     }
     if !app::ffi::bindaru_has_window() {
-        eprintln!("bindaru-gui: the window couldn't be created (is Qt Quick installed?)");
+        eprintln!(
+            "bindaru-gui: [BINDARU-001] the window couldn't be created (is Qt Quick installed?)"
+        );
         std::process::exit(4);
     }
     if let Some(app) = app.as_mut() {
