@@ -424,7 +424,7 @@ Rectangle {
                         objectName: "dep-row-" + modelData.name
                         Layout.fillWidth: true
                         implicitHeight: depRow.implicitHeight + 8
-                        radius: Theme.radius - 2
+                        radius: Theme.radiusControl
                         color: depHover.hovered ? Theme.overlay : "transparent"
                         Behavior on color { ColorAnimation { duration: Theme.motionFast } }
                         HoverHandler { id: depHover }
