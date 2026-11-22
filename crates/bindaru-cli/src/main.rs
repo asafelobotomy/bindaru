@@ -306,6 +306,7 @@ fn scan_after_install(p: &plan::Plan, json: bool, ndjson: bool) -> Result<(), ex
 }
 
 fn main() -> ExitCode {
+    bindaru_core::uq_diag::install_panic_hook("bindaru");
     match run(Cli::parse()) {
         Ok(()) => ExitCode::SUCCESS,
         Err(exec::Failure::ReviewRequired) => ExitCode::from(exec::REVIEW_REQUIRED),

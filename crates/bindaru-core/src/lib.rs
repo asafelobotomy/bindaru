@@ -11,3 +11,4 @@ pub mod protocol;
 pub mod repos;
 pub mod review;
 pub mod scan;
+pub mod uq_diag;

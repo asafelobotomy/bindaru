@@ -1,0 +1,11 @@
+# bindaru's problem codes for uQ (`uqctl log`, `uqctl explain`, Settings › Problems). Installed as
+# /usr/share/uq/diag/bindaru.toml. A code never changes meaning: set `retired = true` on one nothing
+# logs any more, and give a new problem the next number.
+app = "bindaru"
+
+[[code]]
+id = "BINDARU-001"
+severity = "error"
+title = "bindaru's window couldn't open"
+means = "bindaru started but Qt couldn't create its window, so nothing appeared. Usually a Qt Quick module is missing."
+fix = "Reinstall qt6-declarative (and bindaru), then run `bindaru-gui` in a terminal to see Qt's own message."

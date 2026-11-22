@@ -17,4 +17,6 @@ install -Dm644 "$here/packaging/polkit/io.github.asafelobotomy.bindaru.policy" \
     "$d/usr/share/polkit-1/actions/io.github.asafelobotomy.bindaru.policy"
 install -Dm644 -t "$d/usr/share/uq/settings/pages/software/" "$here"/uq/pages/software/*.qml \
     "$here/uq/pages/software/logic.js" "$here/uq/pages/software/page.toml"
+# What each problem code means, for `uqctl explain` and uQ's Settings › Problems.
+install -Dm644 "$here/uq/diag/bindaru.toml" "$d/usr/share/uq/diag/bindaru.toml"
 install -Dm644 "$here/LICENSE" "$d/usr/share/licenses/bindaru/LICENSE" 2>/dev/null || true

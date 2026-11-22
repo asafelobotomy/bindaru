@@ -30,6 +30,9 @@
   <project_license>GPL-3.0-or-later</project_license>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.1.8" date="2026-11-22">
+      <description><p>Problems are reported to uQ: a crash leaves a record uQ lists on Settings › Problems, and the window's startup failure has a code (BINDARU-001) that uqctl explain describes.</p></description>
+    </release>
     <release version="0.1.7" date="2026-11-22">
       <description><p>Hovers, fades and slides move at the same speeds and curve as the uQ desktop.</p></description>
     </release>
