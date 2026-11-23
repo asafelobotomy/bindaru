@@ -30,7 +30,7 @@ Rectangle {
 
         Layout.fillWidth: true
         implicitHeight: 36
-        radius: Theme.radius - 2
+        radius: Theme.radiusControl
         color: current ? Theme.accent : hover.hovered ? Theme.overlay : "transparent"
         Behavior on color { ColorAnimation { duration: Theme.motionFast } }
 

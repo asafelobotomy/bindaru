@@ -8,7 +8,7 @@ src="$here/../../crates/bindaru-gui/qml"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/mod"
-for f in "$src"/*.qml "$src"/../Theme.qml "$src"/logic.js; do
+for f in "$src"/*.qml "$src"/../Theme.qml "$src"/../UqThemeBase.qml "$src"/logic.js; do
   [ "$(basename "$f")" = Main.qml ] || sed "/^import org.bindaru.app$/d" "$f" > "$tmp/mod/$(basename "$f")"
 done
 cp "$here/FakeBackend.qml" "$tmp/mod/"

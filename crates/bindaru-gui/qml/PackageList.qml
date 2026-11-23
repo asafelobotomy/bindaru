@@ -84,7 +84,7 @@ Item {
             height: view.mode === "compact" ? 34 : view.rowHeight
             color: current ? Qt.alpha(Theme.accent, 0.22) : rowHover.hovered ? Theme.overlay : "transparent"
             Behavior on color { ColorAnimation { duration: Theme.motionFast } }
-            radius: Theme.radius - 2
+            radius: Theme.radiusControl
 
             HoverHandler { id: rowHover }
             TapHandler { onTapped: view.store.select(row.modelData.name) }
