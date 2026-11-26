@@ -16,6 +16,8 @@ source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
 options=(!lto)
 sha256sums=('SKIP')
 
+conflicts+=('bindle<0.1.47' 'oysterav<0.5.0' 'uq<0.3.41')  # uq-compat: from uQ's compat/family.toml
+
 build() {
   cd "$pkgname-$pkgver"
   export CARGO_TARGET_DIR=target
