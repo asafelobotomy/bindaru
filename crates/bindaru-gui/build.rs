@@ -9,6 +9,8 @@ fn main() {
         "qml/Sidebar.qml",
         "qml/PackageList.qml",
         "qml/Inspector.qml",
+        "qml/ReviewGate.qml",
+        "qml/DependencyList.qml",
         "qml/Card.qml",
         "qml/SettingsPage.qml",
         "qml/ReposPage.qml",
